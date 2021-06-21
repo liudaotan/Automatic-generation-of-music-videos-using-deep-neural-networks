@@ -1,0 +1,4 @@
+torch-model-archiver --model-name musicgenres --version 1.0 --model-file ../CNNmodels/Model.py --serialized-file ../CNNmodels/cnnModel1.pth --handler myhandler.py
+
+
+torchserve --start --model-store models --models musicgenres=musicgenres.mar
