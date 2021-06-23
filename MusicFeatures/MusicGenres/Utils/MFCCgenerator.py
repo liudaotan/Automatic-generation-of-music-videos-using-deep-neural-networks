@@ -3,6 +3,7 @@ import numpy as np
 import torchaudio
 import torch.nn.functional as F
 import torchvision
+
 import os
 
 
@@ -18,11 +19,18 @@ def mfcc_preprocessing(raw_signal, window_size_sec, chunk=True, train=True):
     :param chunk: slice the MFCCs if the 'chunk' is True, otherwise return MFCCs without any processing.
     :return: a set of chunked mfcc data ([tensor, tensor ... ]).
     """
+    # sr = Config.sr
+    # zero_padding_len = Config.zero_padding_len
+    # music_len_sec = Config.music_len_sec
+    # nfft = Config.nfft
+    # fft_win_len = Config.fft_win_len
+
     sr = 44100
     zero_padding_len = 1800
     music_len_sec = 30
     nfft = 1200
     fft_win_len = 1200
+
     # if the audio is dual-channel, we use the mean of audio signal.
     signal = raw_signal[0]
     signal = tr.mean(signal, axis=0)

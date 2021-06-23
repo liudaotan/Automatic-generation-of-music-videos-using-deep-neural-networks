@@ -3,8 +3,10 @@ import getopt
 import torch
 import torchaudio
 import torchvision
-import CNNmodels.CRNN as Model
+import Models.Models as Models
 import Utils.MFCCgenerator as mfccgenerator
+import torch.nn.functional as F
+
 
 def help_msg():
     print('usage:')
@@ -52,14 +54,14 @@ def preprocessing(filepath):
     #     0, data.shape[1] // (sample_rate * 5) * sample_rate * 5 + 1200 - data.shape[1]))
     # mfccs = MFCC_tranfromer(data)
     # mfccs = MFCC_Norm(mfccs.unsqueeze(0))
-    mfccs = mfccgenerator.mfcc_preprocessing((data, fs), 10,train=False)
+    mfccs = mfccgenerator.mfcc_preprocessing((data, fs), 10, train=False)
     return mfccs
 
 
 def loadmodel():
-    pthpath = 'CNNmodels/rcnnModel1.pth'
+    pthpath = 'Models/rcnnModel1.pth'
     print("loading the model.......")
-    model = Model.CRNNModel()
+    model = Models.CRNNModel()
     model.load_state_dict(torch.load(pthpath))
     return model
 
@@ -75,16 +77,17 @@ def prediction(model, data):
         for item in data:
             item = item.unsqueeze(0)
             y_ = model(item.cuda())
-            predict_list.append((torch.nn.functional.sigmoid(y_) > 0.5).view(-1).nonzero().tolist())
+            predict_list.append((torch.sigmoid(y_) > 0.5).view(-1).nonzero().tolist())
             y_list.append(y_)
             sum_y_ += y_.cpu()
             sum_y_ /= item.shape[1] // num_segment
 
-        y_tensor = torch.stack(y_list,axis=0)
+        y_tensor = torch.stack(y_list, axis=0)
         res_norm = torchvision.transforms.Normalize((0.5,), (0.5,))
         y_tensor = res_norm(y_tensor)
         y_tensor = torch.mean(y_tensor, dim=0)
-        overall_genre = (torch.nn.functional.sigmoid(y_tensor) > 0.5).view(-1).nonzero().tolist()
+        # overall_genre = (torch.nn.functional.sigmoid(y_tensor) > 0.5).view(-1).nonzero().tolist()
+        overall_genre = torch.sum(y_tensor, dim=0)
     return predict_list, overall_genre
 
 
@@ -97,8 +100,12 @@ def showres(predict_list, overall_genre):
             classes = 'unknown'
         print("From seconds ", idx * 10, " to ", (idx + 1) * 10, " the music is ", classes)
     print("------------overall-------------")
-    overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
-    print("The genre of the music is", overall_classes)
+    # overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
+    # print("The genre of the music is", overall_classes)
+    genre_prob = F.softmax(overall_genre, dim=0)
+    top5_genre_prob, top5_genre_name = torch.topk(genre_prob, 5)
+    print("genres prob:",
+          {class_dict[top5_genre_name[i].item()]: round(top5_genre_prob[i].item(), 2) for i in range(5)})
 
 
 if __name__ == '__main__':

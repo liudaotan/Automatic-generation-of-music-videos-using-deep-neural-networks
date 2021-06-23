@@ -1,8 +1,7 @@
 import torch as tr
 from torch.utils.data import Dataset, DataLoader
 import Utils.MusicDataset
-import CNNmodels.CNN as CNN
-import CNNmodels.CRNN as CRNN
+import Models.Models as Models
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,7 +19,7 @@ epochs = 3
 lr = 0.0001
 print_iters = 50
 # model = CNN.CnnModel(num_class=8).cuda()
-model = CRNN.CRNNModel(num_class=8).cuda()
+model = Models.CRNNModel(num_class=8).cuda()
 criterion = tr.nn.BCEWithLogitsLoss()
 optimizer = tr.optim.Adam(model.parameters(), lr=lr)
 loss_list = []
@@ -54,8 +53,8 @@ for e in range(epochs):
 plt.plot(loss_list)
 plt.show()
 
-# tr.save(model.state_dict(), "CNNmodels/cnnModel2.pth")
-tr.save(model.state_dict(), "CNNmodels/rcnnModel1.pth")
+# tr.save(model.state_dict(), "Models/cnnModel2.pth")
+tr.save(model.state_dict(), "Models/rcnnModel1.pth")
 model.eval()
 sum_loss = 0.0
 correct = 0.0
