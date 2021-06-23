@@ -8,6 +8,7 @@ The audio files should be decompressed to the '/fma_small', and the .csv files s
 This module used 2 model(CNN, CRNN) to train the classifier but now the project is using the [CRNN (Shi et al. 2016)](https://arxiv.org/pdf/1507.05717.pdf) as the classifier because it performs much better than CNN. The model used the CRNN architecture proposed by [Choi K, Fazekas G, Sandler M, et al](https://arxiv.org/pdf/1609.04243.pdf) in 2016
 
 ###Citation
+
 [1]. Shi, B., Bai, X., & Yao, C. (2016). An end-to-end trainable neural network for image-based sequence recognition and its application to scene text recognition. IEEE transactions on pattern analysis and machine intelligence, 39(11), 2298-2304.
 
 [2]. Choi K, Fazekas G, Sandler M, et al. Convolutional recurrent neural networks for music classification[C]//2017 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2017: 2392-2396.
