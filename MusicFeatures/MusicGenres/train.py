@@ -1,8 +1,10 @@
 import torch as tr
 from torch.utils.data import Dataset, DataLoader
 import Utils.MusicDataset
-import CNNmodels.Model as Model
+import CNNmodels.CNN as CNN
+import CNNmodels.CRNN as CRNN
 import matplotlib.pyplot as plt
+import numpy as np
 
 # initialize the dataset
 music_data = Utils.MusicDataset.MusicDataLoader("processed_data/processed_data.npy")
@@ -11,19 +13,25 @@ trainset_size = int(music_data.__len__() * 0.85)
 testset_size = music_data.__len__() - trainset_size
 train_set, test_set = tr.utils.data.random_split(music_data, [trainset_size, testset_size])
 # initialize the dataloader
-train_loader = DataLoader(train_set, batch_size=80, num_workers=10, shuffle=True)
-test_loader = DataLoader(test_set, batch_size=10, num_workers=11, pin_memory=True)
+train_loader = DataLoader(train_set, batch_size=120, num_workers=10, shuffle=True)
+test_loader = DataLoader(test_set, batch_size=50, num_workers=11, pin_memory=True)
 
-epochs = 15
-lr = 0.003
-print_iters = 100
-model = Model.CnnModel(num_class=8).cuda()
+epochs = 3
+lr = 0.0001
+print_iters = 50
+# model = CNN.CnnModel(num_class=8).cuda()
+model = CRNN.CRNNModel(num_class=8).cuda()
 criterion = tr.nn.BCEWithLogitsLoss()
 optimizer = tr.optim.Adam(model.parameters(), lr=lr)
 loss_list = []
+tolerance = 0.0005
+predecssing_loss = 0.0
+run = True
 
 for e in range(epochs):
     sum_loss = 0.0
+    # if not run:
+    #     break
     print('------------------------->epoch: ', e)
     for _, item in enumerate(train_loader):
         data, label = item
@@ -34,14 +42,20 @@ for e in range(epochs):
         optimizer.step()
         sum_loss += loss
         if _ % print_iters == (print_iters - 1):
-            loss_list.append(sum_loss.item())
+            loss_list.append(sum_loss.item()/ print_iters)
             print("------> training loss:", sum_loss.item() / print_iters)
+            # if np.abs(sum_loss.item() / print_iters - predecssing_loss) < tolerance:
+            #     run = False
+            #     break
+            # else:
+            #     predecssing_loss = sum_loss.item() / print_iters
             sum_loss = 0.0
 
 plt.plot(loss_list)
 plt.show()
 
-tr.save(model.state_dict(), "CNNmodels/cnnModel2.pth")
+# tr.save(model.state_dict(), "CNNmodels/cnnModel2.pth")
+tr.save(model.state_dict(), "CNNmodels/rcnnModel1.pth")
 model.eval()
 sum_loss = 0.0
 correct = 0.0

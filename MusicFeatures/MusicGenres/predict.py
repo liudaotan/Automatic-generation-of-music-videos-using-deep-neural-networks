@@ -3,7 +3,8 @@ import getopt
 import torch
 import torchaudio
 import torchvision
-import CNNmodels.Model as Model
+import CNNmodels.CRNN as Model
+import Utils.MFCCgenerator as mfccgenerator
 
 def help_msg():
     print('usage:')
@@ -43,28 +44,24 @@ def preprocessing(filepath):
         data = torch.sum(audio, axis=0).unsqueeze(0)
     else:
         data = audio.unsqueeze(0)
-    MFCC_tranfromer = torchaudio.transforms.MFCC(sample_rate=sample_rate, log_mels=True,
-                                                 melkwargs={'n_fft': 1200, 'win_length': 1200,
-                                                            'normalized': True})
-    MFCC_Norm = torchvision.transforms.Normalize((0.5,), (0.5,))
-    data = torch.nn.functional.pad(data, (
-        0, data.shape[1] // (sample_rate * 5) * sample_rate * 5 + 1200 - data.shape[1]))
-    mfccs = MFCC_tranfromer(data)
-    mfccs = MFCC_Norm(mfccs.unsqueeze(0))
+    # MFCC_tranfromer = torchaudio.transforms.MFCC(sample_rate=sample_rate, log_mels=True,
+    #                                              melkwargs={'n_fft': 1200, 'win_length': 1200,
+    #                                                         'normalized': True})
+    # MFCC_Norm = torchvision.transforms.Normalize((0.5,), (0.5,))
+    # data = torch.nn.functional.pad(data, (
+    #     0, data.shape[1] // (sample_rate * 5) * sample_rate * 5 + 1200 - data.shape[1]))
+    # mfccs = MFCC_tranfromer(data)
+    # mfccs = MFCC_Norm(mfccs.unsqueeze(0))
+    mfccs = mfccgenerator.mfcc_preprocessing((data, fs), 10,train=False)
     return mfccs
 
 
 def loadmodel():
-    pthpath = 'CNNmodels/cnnModel1.pth'
+    pthpath = 'CNNmodels/rcnnModel1.pth'
     print("loading the model.......")
-    model = Model.CnnModel()
+    model = Model.CRNNModel()
     model.load_state_dict(torch.load(pthpath))
     return model
-
-
-def datasegment(mfccs):
-    data = [mfccs[..., i * 368:(i + 1) * 368] for i in range(mfccs.shape[-1] // 368)]
-    return data
 
 
 def prediction(model, data):
@@ -76,6 +73,7 @@ def prediction(model, data):
     num_segment = len(data)
     with torch.no_grad():
         for item in data:
+            item = item.unsqueeze(0)
             y_ = model(item.cuda())
             predict_list.append((torch.nn.functional.sigmoid(y_) > 0.5).view(-1).nonzero().tolist())
             y_list.append(y_)
@@ -83,12 +81,9 @@ def prediction(model, data):
             sum_y_ /= item.shape[1] // num_segment
 
         y_tensor = torch.stack(y_list,axis=0)
-        print(y_tensor.shape)
         res_norm = torchvision.transforms.Normalize((0.5,), (0.5,))
         y_tensor = res_norm(y_tensor)
-        print(y_tensor)
         y_tensor = torch.mean(y_tensor, dim=0)
-        print(y_tensor)
         overall_genre = (torch.nn.functional.sigmoid(y_tensor) > 0.5).view(-1).nonzero().tolist()
     return predict_list, overall_genre
 
@@ -100,7 +95,7 @@ def showres(predict_list, overall_genre):
         classes = [class_dict[cat[0]] for cat in item]
         if len(classes) == 0:
             classes = 'unknown'
-        print("From seconds ", idx * 5, " to ", (idx + 1) * 5, " the music is ", classes)
+        print("From seconds ", idx * 10, " to ", (idx + 1) * 10, " the music is ", classes)
     print("------------overall-------------")
     overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
     print("The genre of the music is", overall_classes)
@@ -112,9 +107,7 @@ if __name__ == '__main__':
     model = loadmodel()
     # ----------preprocessing------------
     mfccs_data = preprocessing(filepath)
-    # ----------get mfccs chunks------------
-    data = datasegment(mfccs_data)
     # ----------prediction------------
-    predict_list, overall_genre = prediction(model, data)
+    predict_list, overall_genre = prediction(model, mfccs_data)
     # ----------show result------------
     showres(predict_list, overall_genre)
