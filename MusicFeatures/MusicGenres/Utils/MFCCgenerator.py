@@ -13,11 +13,25 @@ def mfcc_preprocessing(raw_signal, window_size_sec, chunk=True, train=True):
     The data will be padded by zero and then processed by MFCC. The MFcc will be evenly sliced into many chunks by t
     ime distributed, it makes the model focus on the data in a short period of time.
 
-    :param train:
-    :param raw_signal: raw signal data extract by Librosa or TorchAudio, which is a set (tensor: signal, int: sample_rate).
-    :param window_size_sec: the length of a window per second.
-    :param chunk: slice the MFCCs if the 'chunk' is True, otherwise return MFCCs without any processing.
-    :return: a set of chunked mfcc data ([tensor, tensor ... ]).
+    Parameters:
+    ----------
+    raw_signal:  set(tensor: signal, int: sample_rate)
+        raw signal data extract by Librosa or TorchAudio, which is a set.
+
+    window_size_sec: int
+        the length of a window per second.
+
+    chunk:  boolean('True' or 'False')
+        slice the MFCCs if the 'chunk' is True, otherwise return MFCCs without any processing.
+
+    train: boolean('True' or 'False')
+        if it is true, the function will set the size of signal to 30s.
+
+    Return
+    ------
+    MFCCs chunks: set([tensor, tensor ... ])
+        a set of chunked mfcc data .
+
     """
     # sr = Config.sr
     # zero_padding_len = Config.zero_padding_len
