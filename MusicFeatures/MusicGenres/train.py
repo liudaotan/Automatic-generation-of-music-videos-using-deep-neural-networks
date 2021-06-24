@@ -15,7 +15,7 @@ train_set, test_set = tr.utils.data.random_split(music_data, [trainset_size, tes
 train_loader = DataLoader(train_set, batch_size=120, num_workers=10, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=50, num_workers=11, pin_memory=True)
 
-epochs = 3
+epochs = 50
 lr = 0.0001
 print_iters = 50
 # model = CNN.CnnModel(num_class=8).cuda()
