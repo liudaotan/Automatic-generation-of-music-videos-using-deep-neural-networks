@@ -16,6 +16,18 @@ tracks_path_pd = pd.read_csv(tracks_path, low_memory=False)
 
 # get the root genre
 def get_parent(child_node):
+    """
+    Parameter:
+    ----------
+    child_node: int
+        The number of the music genre.
+
+    Return:
+    -------
+    root_node: int
+        The number of the root genre.
+
+    """
     if len(genre_path_pd['parent'][genre_path_pd['genre_id'] == child_node]) > 0:
         parent = genre_path_pd['parent'][genre_path_pd['genre_id'] == child_node].item()
         if parent == 0:

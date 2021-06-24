@@ -46,14 +46,6 @@ def preprocessing(filepath):
         data = torch.sum(audio, axis=0).unsqueeze(0)
     else:
         data = audio.unsqueeze(0)
-    # MFCC_tranfromer = torchaudio.transforms.MFCC(sample_rate=sample_rate, log_mels=True,
-    #                                              melkwargs={'n_fft': 1200, 'win_length': 1200,
-    #                                                         'normalized': True})
-    # MFCC_Norm = torchvision.transforms.Normalize((0.5,), (0.5,))
-    # data = torch.nn.functional.pad(data, (
-    #     0, data.shape[1] // (sample_rate * 5) * sample_rate * 5 + 1200 - data.shape[1]))
-    # mfccs = MFCC_tranfromer(data)
-    # mfccs = MFCC_Norm(mfccs.unsqueeze(0))
     mfccs = mfccgenerator.mfcc_preprocessing((data, fs), 10, train=False)
     return mfccs
 
