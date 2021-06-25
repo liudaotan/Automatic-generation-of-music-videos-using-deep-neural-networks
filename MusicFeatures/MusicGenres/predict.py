@@ -51,7 +51,7 @@ def preprocessing(filepath):
 
 
 def loadmodel():
-    pthpath = 'Models/rcnnModel1.pth'
+    pthpath = 'Models/crnnModel1.pth'
     print("loading the model.......")
     model = Models.CRNNModel()
     model.load_state_dict(torch.load(pthpath))
