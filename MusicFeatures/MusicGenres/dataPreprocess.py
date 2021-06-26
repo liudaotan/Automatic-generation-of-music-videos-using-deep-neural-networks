@@ -1,10 +1,7 @@
-import torch as tr
 import numpy as np
 import torchaudio
-import torch.nn.functional as F
-import torchvision
 import os
-import Utils.MFCCgenerator as mfccgenerator
+import MusicFeatures.MusicGenres.Utils.MFCCgenerator as mfccgenerator
 
 # load data from pickle
 top_10_onehot_data = np.load("../processed_data/top_10_onehot_data.npy", allow_pickle=True)

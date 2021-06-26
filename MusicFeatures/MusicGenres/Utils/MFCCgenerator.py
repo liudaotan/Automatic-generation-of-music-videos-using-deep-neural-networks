@@ -8,7 +8,7 @@ import os
 
 
 # data preprocessing
-def mfcc_preprocessing(raw_signal, window_size_sec, chunk=True, train=True):
+def mfcc_preprocessing(raw_signal, window_size_sec=10, chunk=True, train=True):
     """
     The data will be padded by zero and then processed by MFCC. The MFcc will be evenly sliced into many chunks by t
     ime distributed, it makes the model focus on the data in a short period of time.

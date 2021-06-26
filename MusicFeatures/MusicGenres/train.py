@@ -1,12 +1,12 @@
 import torch as tr
 from torch.utils.data import Dataset, DataLoader
-import Utils.MusicDataset
-import Models.Models as Models
+import MusicFeatures.MusicGenres.Utils.MusicDataset as MusicDataset
+import MusicFeatures.MusicGenres.Models.Models as Models
 import matplotlib.pyplot as plt
 import numpy as np
 
 # initialize the dataset
-music_data = Utils.MusicDataset.MusicDataLoader("processed_data/processed_data.npy")
+music_data = MusicDataset.MusicDataLoader("processed_data/processed_data.npy")
 # seperate the dataset into training set and test set
 trainset_size = int(music_data.__len__() * 0.85)
 testset_size = music_data.__len__() - trainset_size
