@@ -4,6 +4,7 @@ import MusicFeatures.MusicGenres.Utils.MusicDataset as MusicDataset
 import MusicFeatures.MusicGenres.Models.Models as Models
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import multilabel_confusion_matrix as mcm
 
 # initialize the dataset
 music_data = MusicDataset.MusicDataLoader("processed_data/processed_data.npy")
@@ -15,7 +16,7 @@ train_set, test_set = tr.utils.data.random_split(music_data, [trainset_size, tes
 train_loader = DataLoader(train_set, batch_size=120, num_workers=10, shuffle=True)
 test_loader = DataLoader(test_set, batch_size=50, num_workers=11, pin_memory=True)
 
-epochs = 50
+epochs = 20
 lr = 0.0001
 print_iters = 50
 # model = CNN.CnnModel(num_class=8).cuda()
@@ -54,25 +55,35 @@ plt.plot(loss_list)
 plt.show()
 
 # tr.save(model.state_dict(), "Models/cnnModel2.pth")
-tr.save(model.state_dict(), "Models/crnnModel1.pth")
+tr.save(model.state_dict(), "crnnModel1.pth")
 model.eval()
 sum_loss = 0.0
 correct = 0.0
 model.cuda()
+classes= ['Experimental', 'Electronic', 'Rock', 'Instrumental', 'Folk', 'Pop', 'Hip-Hop','International']
+
+multilabel_pred_list = []
+multilabel_label_list = []
 
 with tr.no_grad():
     for _, item in enumerate(test_loader):
         data, label = item
         label = label.cuda()
         y_ = model(data.cuda())
-        pred = tr.nn.functional.sigmoid(y_)
         loss = criterion(y_, label)
         sum_loss += loss
-
         for idx in range(data.shape[0]):
-            if tr.equal((tr.nn.functional.sigmoid(y_[idx]) > 0.5).to(tr.float), label[idx]):
+            if tr.equal((tr.sigmoid(y_[idx]) > 0.5).to(tr.float), label[idx]):
                 correct += 1
+        multilabel_pred_list.extend((tr.sigmoid(y_) > 0.5).to(tr.int).cpu().tolist())
+        multilabel_label_list.extend(label.cpu().tolist())
     acc = correct / len(test_set)
     test_loss = sum_loss / _
+
     print("test accuracy:", acc)
+mcm_res = mcm(y_true=multilabel_label_list, y_pred=multilabel_pred_list)
+for _, item in enumerate(mcm_res):
+    print(classes[_])
+    print(item)
+    print("-·-·-·-·-·-·-·-·-")
 

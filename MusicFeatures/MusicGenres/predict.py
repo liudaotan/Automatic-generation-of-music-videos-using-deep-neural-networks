@@ -60,6 +60,6 @@ if __name__ == '__main__':
     # ----------preprocessing------------
     mfccs_data = genregetter.preprocessing(filepath)
     # ----------prediction------------
-    predict_list, overall_genre = genregetter.prediction(model, mfccs_data)
+    predict_list, overall_genre, overall_genre, = genregetter.prediction(model, mfccs_data)
     # ----------show result------------
     showres(predict_list, overall_genre)

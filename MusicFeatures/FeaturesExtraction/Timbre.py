@@ -12,7 +12,7 @@ def fft_freq(n_fft, sr):
     return torch.linspace(0, float(sr) / 2, int(1 + n_fft // 2))
 
 
-def spectral_centroid(signal, sr, n_fft=2048):
+def spectral_centroid(signal, sr, n_fft=2048, window_len=2048, hop_len=512):
     """
     Parameters:
     ----------
@@ -41,7 +41,7 @@ def spectral_centroid(signal, sr, n_fft=2048):
     else:
         raise ValueError('the number of channels must be 1 or 2')
 
-    spectrogram = nnAudio.Spectrogram.STFT(sr=sr, n_fft=n_fft, output_format="Magnitude",verbose=False)(signal).squeeze()
+    spectrogram = nnAudio.Spectrogram.STFT(sr=sr, n_fft=n_fft,win_length=window_len, hop_length=hop_len, output_format="Magnitude",verbose=False)(signal).squeeze()
     fft_frequencies = fft_freq(n_fft, sr/2).view(-1, 1)
     norm_spectrogram = spectrogram/torch.sum(spectrogram, dim=0)
     return torch.sum(fft_frequencies * norm_spectrogram, dim=0)

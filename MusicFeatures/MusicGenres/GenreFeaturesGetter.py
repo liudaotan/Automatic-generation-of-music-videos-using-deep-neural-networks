@@ -1,21 +1,23 @@
-from Utils.MFCCgenerator import mfcc_preprocessing
-import Models.Models as Models
+from MusicFeatures.MusicGenres.Models import Models
 import torch
 import torchaudio
 import torchvision
 
 
+chunk_size = 10
+
 def loadmodel():
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
-    pthpath = 'Models/crnnModel1.pth'
+    pthpath = 'MusicGenres/crnnModel1.pth'
     print("loading the model.......")
     model = Models.CRNNModel()
-    model.load_state_dict(torch.load(pthpath,map_location=device))
+    model.load_state_dict(torch.load(pthpath, map_location=device))
     return model
 
 
 def prediction(model, data):
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
+    model.to(device)
     model.eval()
     predict_list = []
     y_list = []
@@ -33,23 +35,13 @@ def prediction(model, data):
         y_tensor = torch.stack(y_list, axis=0)
         res_norm = torchvision.transforms.Normalize((0.5,), (0.5,))
         y_tensor = res_norm(y_tensor)
-        y_tensor = torch.mean(y_tensor, dim=0)
+        overall_genre = torch.mean(y_tensor, dim=0)
         # overall_genre = (torch.nn.functional.sigmoid(y_tensor) > 0.5).view(-1).nonzero().tolist()
-        overall_genre = torch.sum(y_tensor, dim=0)
-    return predict_list, overall_genre
+        # overall_genre = torch.sum(y_tensor, dim=0)
+    return predict_list, overall_genre, y_tensor
 
 
-def genre_features_getter(signal, sr=44100, frame_ms=100):
-    signal_len = len(signal)
-    signal_len_sec = signal_len // sr if signal_len % sr == 0 else signal_len // sr + 1
-    repeat_per_sec = 1000 / frame_ms
-    mfccs_chunks = mfcc_preprocessing((signal, sr))
-
-def preprocessing(filepath):
-    audio, fs = torchaudio.load(filepath)
-    if audio.dim() > 1:
-        data = torch.sum(audio, axis=0).unsqueeze(0)
-    else:
-        data = audio.unsqueeze(0)
-    mfccs = mfcc_preprocessing((data, fs), 10, train=False)
-    return mfccs
+# y,sr = torchaudio.load("prototype.mp3")
+# model = loadmodel()
+# mfcc = mfcc_preprocessing((y,sr))
+# prediction(model, mfcc)
