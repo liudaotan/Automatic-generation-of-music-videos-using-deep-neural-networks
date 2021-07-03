@@ -3,12 +3,13 @@ import getopt
 import torch
 import GenreFeaturesGetter as genregetter
 import torch.nn.functional as F
-
+from Utils.MFCCgenerator import mfcc_preprocessing
+import torchaudio
 
 def help_msg():
     print('usage:')
     print('-h, --help: print help message.')
-    print('-f, --file: aduio file')
+    print('-f, --file: audio file')
 
 
 def main(argv):
@@ -47,19 +48,25 @@ def showres(predict_list, overall_genre):
     print("------------overall-------------")
     # overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
     # print("The genre of the music is", overall_classes)
-    genre_prob = F.softmax(overall_genre, dim=0)
+    genre_prob = F.softmax(overall_genre)
     top5_genre_prob, top5_genre_name = torch.topk(genre_prob, 5)
+    top5_genre_prob = top5_genre_prob.squeeze()
+    top5_genre_name = top5_genre_name.squeeze()
     print("genres prob:",
           {class_dict[top5_genre_name[i].item()]: round(top5_genre_prob[i].item(), 2) for i in range(5)})
 
+def preprocessing(filepath):
+    signal,sr = torchaudio.load(filepath)
+    mfccs_chunks = mfcc_preprocessing((signal,sr ), train=False)
+    return mfccs_chunks
 
 if __name__ == '__main__':
     filepath = main(sys.argv)
     # ----------load the model------------
     model = genregetter.loadmodel()
     # ----------preprocessing------------
-    mfccs_data = genregetter.preprocessing(filepath)
+    mfccs_data = preprocessing(filepath)
     # ----------prediction------------
-    predict_list, overall_genre, overall_genre, = genregetter.prediction(model, mfccs_data)
+    predict_list, overall_genre, y_tensor, = genregetter.prediction(model, mfccs_data)
     # ----------show result------------
     showres(predict_list, overall_genre)

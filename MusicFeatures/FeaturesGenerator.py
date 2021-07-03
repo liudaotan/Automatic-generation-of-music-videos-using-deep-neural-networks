@@ -3,7 +3,7 @@ from FeaturesExtraction import Timbre as timbrefeaturesgetter
 from MusicGenres.Utils import MFCCgenerator as mfccgenerator
 import torch
 import torchaudio
-
+import torch.nn.functional as F
 
 class FeaturesGenerator:
     def __init__(self):
@@ -15,6 +15,7 @@ class FeaturesGenerator:
         spec_centroid = timbrefeaturesgetter.spectral_centroid(audio, sr, window_len=int(self.frame_len * 2 * sr),
                                                                hop_len=int(self.frame_len * sr),
                                                                n_fft=int(self.frame_len * 2 * sr))
+        spec_centroid = F.normalize(spec_centroid,dim=0)
         return spec_centroid
 
     def getGenresFeatures(self, audio, sr, model, frame_len=0.1):
@@ -28,9 +29,11 @@ class FeaturesGenerator:
         mfccs = mfccgenerator.mfcc_preprocessing((audio, sr), self.chunk_size, train=False)
         predict_list, overall_genre, y_list = genrefeaturesgetter.prediction(model, mfccs)
         for item in y_list:
+            item = torch.softmax(item, dim=1)
             repeated_item = item.repeat(int(self.chunk_size / frame_len), 1)
             repeated_list.append(repeated_item)
         res = torch.cat(repeated_list, dim=0)
+        overall_genre = torch.softmax(overall_genre, dim=1)
         repeated_overall_genre = overall_genre.repeat(int(self.chunk_size / frame_len), 1)
         res = torch.cat((res, repeated_overall_genre), dim=0)
         return res
@@ -47,5 +50,5 @@ class FeaturesGenerator:
         features = torch.cat((timbre, genre[:features_len,:].cpu()), dim=1)
         return features
 
-features = FeaturesGenerator()
-print(features.getFeatures("MusicGenres/prototype.mp3").shape)
+# featuresgenerator = FeaturesGenerator()
+# features = featuresgenerator.getFeatures("MusicGenres/prototype.mp3")
