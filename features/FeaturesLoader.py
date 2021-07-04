@@ -199,6 +199,6 @@ class FeaturesLoader:
 
 
 if __name__ == '__main__':
-    features_loader = FeaturesLoader(models.CRNNModel(), para_file_path='../crnnModel1.pth')
+    features_loader = FeaturesLoader(models.CRNNModel(), para_file_path='../resources/pth/crnnModel1.pth')
     audio_features = features_loader.getFeatures("../MusicFeatures/music/prototype.mp3")
 

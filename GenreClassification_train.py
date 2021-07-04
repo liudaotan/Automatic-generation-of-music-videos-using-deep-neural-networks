@@ -55,7 +55,7 @@ plt.plot(loss_list)
 plt.show()
 
 # tr.save(model.state_dict(), "Models/cnnModel2.pth")
-tr.save(model.state_dict(), "crnnModel1.pth")
+tr.save(model.state_dict(), "resources/pth/crnnModel1.pth")
 model.eval()
 sum_loss = 0.0
 correct = 0.0

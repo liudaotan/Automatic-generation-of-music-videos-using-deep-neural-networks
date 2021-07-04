@@ -1,9 +1,10 @@
 import sys
 import getopt
 import torch
-import GenreFeaturesGetter as genregetter
 import torch.nn.functional as F
-from Utils.MFCCgenerator import mfcc_preprocessing
+from features.Features import FeaturesGenerator
+import features.FeaturesLoader as FeaturesLoader
+import models.Models as Models
 import torchaudio
 
 def help_msg():
@@ -48,7 +49,7 @@ def showres(predict_list, overall_genre):
     print("------------overall-------------")
     # overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
     # print("The genre of the music is", overall_classes)
-    genre_prob = F.softmax(overall_genre)
+    genre_prob = F.softmax(overall_genre,dim=1)
     top5_genre_prob, top5_genre_name = torch.topk(genre_prob, 5)
     top5_genre_prob = top5_genre_prob.squeeze()
     top5_genre_name = top5_genre_name.squeeze()
@@ -57,16 +58,18 @@ def showres(predict_list, overall_genre):
 
 def preprocessing(filepath):
     signal,sr = torchaudio.load(filepath)
-    mfccs_chunks = mfcc_preprocessing((signal,sr ), train=False)
+    features_gen = FeaturesGenerator()
+    mfccs_chunks = features_gen.mfcc_preprocessing((signal,sr ), train=False)
     return mfccs_chunks
 
 if __name__ == '__main__':
     filepath = main(sys.argv)
     # ----------load the model------------
-    model = genregetter.loadmodel()
+    model = Models.CRNNModel()
+    model = FeaturesLoader.loadmodel(model=model, para_file_path="resources/pth/crnnModel1.pth")
     # ----------preprocessing------------
     mfccs_data = preprocessing(filepath)
     # ----------prediction------------
-    predict_list, overall_genre, y_tensor, = genregetter.prediction(model, mfccs_data)
+    predict_list, overall_genre, y_tensor, = FeaturesLoader.prediction(model, mfccs_data)
     # ----------show result------------
     showres(predict_list, overall_genre)
