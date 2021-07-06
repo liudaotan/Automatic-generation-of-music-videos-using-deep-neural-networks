@@ -122,3 +122,7 @@ class FeaturesGenerator:
         return tr.sum(fft_frequencies * norm_spectrogram, dim=0)
 
 
+if __name__ == '__main__':
+    features_gen = FeaturesGenerator()
+    mfcc_chunks = features_gen.mfcc_preprocessing(torchaudio.load("../resources/music/space_oddity.mp3"),chunk=False, train=False)
+    print(mfcc_chunks.shape)
