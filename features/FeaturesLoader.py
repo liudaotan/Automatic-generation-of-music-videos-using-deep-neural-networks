@@ -2,7 +2,7 @@ import torch
 import torchaudio
 import torch.nn.functional as F
 
-import models
+import mymodels
 import torchvision
 from features.Features import FeaturesGenerator
 
@@ -82,7 +82,7 @@ class FeaturesLoader:
     This class provides the timbre and genres features,
     also, it can return a concatenated tensor of both timbre and genres features.
     """
-    def __init__(self, torch_model, para_file_path):
+    def __init__(self, torch_model, para_file_path, frame_len=0.1):
         """
         Parameters
         ----------
@@ -96,11 +96,11 @@ class FeaturesLoader:
         # which means chunk_size=10 stands for that each chunk accounts for 10 seconds.
         self.chunk_size = 10
         # the length of a frame. the unit of this argument is second.
-        self.frame_len = 0.1
+        self.frame_len = frame_len
         self.model = loadmodel(torch_model, para_file_path)
         self.features_generator = FeaturesGenerator()
 
-    def getTimbreFeatures(self, audio, sr):
+    def getTimbreFeatures(self, audio, sr, ):
         """
         Parameters
         ----------
@@ -173,6 +173,7 @@ class FeaturesLoader:
 
         """
         audio, sr = torchaudio.load(path)
+
         return audio, sr
 
     def getFeatures(self, path):
@@ -191,7 +192,7 @@ class FeaturesLoader:
 
         """
         audio, sr = self.loadMusic(path)
-        genre = self.getGenresFeatures(audio, sr, self.model)
+        genre = self.getGenresFeatures(audio, sr, self.model, frame_len=self.frame_len)
         timbre = self.getTimbreFeatures(audio, sr).view(-1, 1)
         features_len = timbre.shape[0]
         features = torch.cat((timbre, genre[:features_len, :].cpu()), dim=1)
@@ -199,6 +200,6 @@ class FeaturesLoader:
 
 
 if __name__ == '__main__':
-    features_loader = FeaturesLoader(models.CRNNModel(), para_file_path='../resources/pth/crnnModel1.pth')
-    audio_features = features_loader.getFeatures("../MusicFeatures/music/prototype.mp3")
-
+    features_loader = FeaturesLoader(mymodels.CRNNModel(), para_file_path='../resources/pth/crnnModel1.pth',frame_len=0.025)
+    audio_features = features_loader.getFeatures("../resources/music/bj_new.mp3")
+    print(audio_features.shape)

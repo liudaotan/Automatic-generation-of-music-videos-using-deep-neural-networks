@@ -118,7 +118,7 @@ class FeaturesGenerator:
         spectrogram = nnAudio.Spectrogram.STFT(sr=sr, n_fft=n_fft, win_length=window_len, hop_length=hop_len,
                                                output_format="Magnitude", verbose=False)(signal).squeeze()
         fft_frequencies = self.fft_freq(n_fft, sr / 2).view(-1, 1)
-        norm_spectrogram = spectrogram / tr.sum(spectrogram, dim=0)
+        norm_spectrogram = spectrogram / tr.clip(tr.sum(spectrogram, dim=0), min=1e-6)
         return tr.sum(fft_frequencies * norm_spectrogram, dim=0)
 
 
