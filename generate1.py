@@ -220,5 +220,5 @@ if __name__ == '__main__':
     model_gen = Models.Generator(ngpu=1)
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     model_gen.load_state_dict(torch.load(generator_path, map_location=device))
-    base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
+    base_video_gen = BaseVideoGenerator(gan_model=model_gen.to(device), latent_dim=100)
     base_video_gen('resources/music/bj_new.mp3')
