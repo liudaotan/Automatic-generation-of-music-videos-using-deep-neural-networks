@@ -39,7 +39,10 @@ class BaseVideoGenerator(object):
         self.sec_per_keypic = sec_per_keypic
         self.num_keypic = 0
         self.latent_features = False
-        self.impulse_win = torch.hann_window(6).view(-1, 1).to(self.device)
+        # emphasize weight
+        self.emphasize_weight = 0.2
+        self.impulse_win_len = 6
+        self.impulse_win = torch.hann_window(self.impulse_win_len).view(-1, 1).to(self.device)
         self.frame_len = frame_len
         self.latent_features_is_init = False
 
@@ -92,16 +95,17 @@ class BaseVideoGenerator(object):
 
             # apply the impulse window to the probabilistic density of spectral
             # centroid to emphasize signals on beats
+            half_impulse_win_len = int(self.impulse_win_len / 2)
             for beat in beats_block:
-                if beat - 3 > 0 and beat + 3 < fps_bloc:
-                    spec_cent_partial[beat - 3: beat + 3] += spec_cent_partial[
-                                                             beat - 3: beat + 3] * self.impulse_win * 0.2
-                elif beat - 3 <= 0:
-                    spec_cent_partial[0: beat + 3] += spec_cent_partial[0: beat + 3] * self.impulse_win[
-                                                                                       :beat + 3] * 0.2
+                if beat - half_impulse_win_len > 0 and beat + half_impulse_win_len < fps_bloc:
+                    spec_cent_partial[beat - half_impulse_win_len: beat + half_impulse_win_len] += spec_cent_partial[
+                                                             beat - half_impulse_win_len: beat + half_impulse_win_len] * self.impulse_win * self.emphasize_weight
+                elif beat - half_impulse_win_len <= 0:
+                    spec_cent_partial[0: beat + half_impulse_win_len] += spec_cent_partial[0: beat + half_impulse_win_len] * self.impulse_win[
+                                                                                       :beat + half_impulse_win_len] * self.emphasize_weight
                 else:
-                    spec_cent_partial[beat - 3:] += spec_cent_partial[beat - 3:] * self.impulse_win[
-                                                                                   -(fps_bloc - beat + 3):] * 0.2
+                    spec_cent_partial[beat - half_impulse_win_len:] += spec_cent_partial[beat - half_impulse_win_len:] * self.impulse_win[
+                                                                                   -(fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
 
             # multiply the difference vector to the spectral centroid probabilistic density
             self.latent_features[i * fps_bloc:(i + 1) * fps_bloc] = torch.mul(spec_cent_partial, diff_vec.view(1, -1)) + \
@@ -167,7 +171,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
             the time of a frame(default 0.025 seconds)
 
         sec_per_keypic: int
-            the time a keypicture
+            the time a key picture showing(default 7 seconds)
 
         """
         super(HpssVideoGenerator, self).__init__(**kwargs)
@@ -198,37 +202,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
         for i in range(self.num_keypic):
             self.latent_features[i * fps_bloc] = keypic[i]
 
-        # init frames between two keyframes
-        for i in range(self.num_keypic - 1):
-            diff_vec = keypic[i + 1] - keypic[i]
 
-            # get the spectral centroid probability
-            spec_cent_partial = spec_cent[i * fps_bloc:(i + 1) * fps_bloc]
-
-            # let spectral centroids follow probabilistic density
-            spec_cent_partial = torch.cumsum(torch.softmax(spec_cent_partial.reshape(-1, 1), dim=0), dim=0).to(
-                self.device)
-
-            # get beats in this block
-            beats_block = beats[(beats > i * fps_bloc) & (beats < (i + 1) * fps_bloc)] % fps_bloc
-
-            # apply the impulse window to the probabilistic density of spectral
-            # centroid to emphasize signals on beats
-            for beat in beats_block:
-                if beat - 3 > 0 and beat + 3 < fps_bloc:
-                    spec_cent_partial[beat - 3: beat + 3] += spec_cent_partial[
-                                                             beat - 3: beat + 3] * self.impulse_win * 0.2
-                elif beat - 3 <= 0:
-                    spec_cent_partial[0: beat + 3] += spec_cent_partial[0: beat + 3] * self.impulse_win[
-                                                                                       :beat + 3] * 0.2
-                else:
-                    spec_cent_partial[beat - 3:] += spec_cent_partial[beat - 3:] * self.impulse_win[
-                                                                                   -(fps_bloc - beat + 3):] * 0.2
-
-            # multiply the difference vector to the spectral centroid probabilistic density
-            self.latent_features[i * fps_bloc:(i + 1) * fps_bloc] = torch.mul(spec_cent_partial, diff_vec.view(1, -1)) + \
-                                                                    keypic[i]
-        self.latent_features_is_init = True
 
 
 if __name__ == '__main__':
