@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ffmpeg
 import os
+import mymodels.Models as Models
 
 
 class BaseVideoGenerator(object):
@@ -19,7 +20,7 @@ class BaseVideoGenerator(object):
     The shape of PGAN's latent vector is n*512 which n is the number of pictures.
     """
 
-    def __init__(self, frame_len=0.025, sec_per_keypic=7, gan_model=None):
+    def __init__(self, frame_len=0.025, sec_per_keypic=7, gan_model=None, latent_dim=None):
         use_gpu = True if torch.cuda.is_available() else False
         self.device = torch.device("cuda:0" if use_gpu else "cpu")
         # trained on high-quality celebrity faces "celebA" dataset
@@ -35,7 +36,10 @@ class BaseVideoGenerator(object):
                                               para_file_path="resources/pth/crnnModel1.pth",
                                               frame_len=frame_len)
         # dimension of the latent vector
-        self.latent_dim = 512
+        if latent_dim is None:
+            self.latent_dim = 512
+        else:
+            self.latent_dim = latent_dim
         # frames per second
         self.fps = math.ceil(1 // frame_len)
         # seconds per key picture
@@ -111,7 +115,7 @@ class BaseVideoGenerator(object):
                     spec_cent_partial[beat - half_impulse_win_len:] += spec_cent_partial[
                                                                        beat - half_impulse_win_len:] * self.impulse_win[
                                                                                                        -(
-                                                                                                                   fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
+                                                                                                               fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
 
             # multiply the difference vector to the spectral centroid probabilistic density
             self.latent_features[i * fps_bloc:(i + 1) * fps_bloc] = torch.mul(spec_cent_partial, diff_vec.view(1, -1)) + \
@@ -205,8 +209,10 @@ class HpssVideoGenerator(BaseVideoGenerator):
         self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
 
 
-
-
 if __name__ == '__main__':
-    base_video_gen = BaseVideoGenerator()
+    generator_path = 'resources/pth/netG_200_size64.pth'
+    model_gen = Models.Generator()
+    device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
+    model_gen.load_state_dict(torch.load(generator_path, map_location=device))
+    base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
     base_video_gen('resources/music/bj_new.mp3')
