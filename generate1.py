@@ -19,14 +19,17 @@ class BaseVideoGenerator(object):
     The shape of PGAN's latent vector is n*512 which n is the number of pictures.
     """
 
-    def __init__(self, frame_len=0.025, sec_per_keypic=7):
+    def __init__(self, frame_len=0.025, sec_per_keypic=7, gan_model=None):
         use_gpu = True if torch.cuda.is_available() else False
         self.device = torch.device("cuda:0" if use_gpu else "cpu")
         # trained on high-quality celebrity faces "celebA" dataset
         # this model outputs 512 x 512 pixel images
-        self.gan_model = torch.hub.load('facebookresearch/pytorch_GAN_zoo:hub',
-                                        'PGAN', model_name='celebAHQ-512',
-                                        pretrained=True, useGPU=use_gpu)
+        if gan_model is None:
+            self.gan_model = torch.hub.load('facebookresearch/pytorch_GAN_zoo:hub',
+                                            'PGAN', model_name='celebAHQ-512',
+                                            pretrained=True, useGPU=use_gpu)
+        else:
+            self.gan_model = gan_model
         self.audio_model = Models.CRNNModel()
         self.features_loader = FeaturesLoader(torch_model=self.audio_model,
                                               para_file_path="resources/pth/crnnModel1.pth",
@@ -99,13 +102,16 @@ class BaseVideoGenerator(object):
             for beat in beats_block:
                 if beat - half_impulse_win_len > 0 and beat + half_impulse_win_len < fps_bloc:
                     spec_cent_partial[beat - half_impulse_win_len: beat + half_impulse_win_len] += spec_cent_partial[
-                                                             beat - half_impulse_win_len: beat + half_impulse_win_len] * self.impulse_win * self.emphasize_weight
+                                                                                                   beat - half_impulse_win_len: beat + half_impulse_win_len] * self.impulse_win * self.emphasize_weight
                 elif beat - half_impulse_win_len <= 0:
-                    spec_cent_partial[0: beat + half_impulse_win_len] += spec_cent_partial[0: beat + half_impulse_win_len] * self.impulse_win[
-                                                                                       :beat + half_impulse_win_len] * self.emphasize_weight
+                    spec_cent_partial[0: beat + half_impulse_win_len] += spec_cent_partial[
+                                                                         0: beat + half_impulse_win_len] * self.impulse_win[
+                                                                                                           :beat + half_impulse_win_len] * self.emphasize_weight
                 else:
-                    spec_cent_partial[beat - half_impulse_win_len:] += spec_cent_partial[beat - half_impulse_win_len:] * self.impulse_win[
-                                                                                   -(fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
+                    spec_cent_partial[beat - half_impulse_win_len:] += spec_cent_partial[
+                                                                       beat - half_impulse_win_len:] * self.impulse_win[
+                                                                                                       -(
+                                                                                                                   fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
 
             # multiply the difference vector to the spectral centroid probabilistic density
             self.latent_features[i * fps_bloc:(i + 1) * fps_bloc] = torch.mul(spec_cent_partial, diff_vec.view(1, -1)) + \
@@ -197,10 +203,6 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # fps of a block
         fps_bloc = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
-
-        # init keyframes
-        for i in range(self.num_keypic):
-            self.latent_features[i * fps_bloc] = keypic[i]
 
 
 

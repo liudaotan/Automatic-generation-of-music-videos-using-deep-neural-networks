@@ -7,6 +7,7 @@ import features.FeaturesLoader as FeaturesLoader
 import models.Models as Models
 import torchaudio
 
+
 def help_msg():
     print('usage:')
     print('-h, --help: print help message.')
@@ -49,18 +50,20 @@ def showres(predict_list, overall_genre):
     print("------------overall-------------")
     # overall_classes = class_dict[overall_genre[0][0]] if len(overall_genre)>0 else 'unknown'
     # print("The genre of the music is", overall_classes)
-    genre_prob = F.softmax(overall_genre,dim=1)
+    genre_prob = F.softmax(overall_genre, dim=1)
     top5_genre_prob, top5_genre_name = torch.topk(genre_prob, 5)
     top5_genre_prob = top5_genre_prob.squeeze()
     top5_genre_name = top5_genre_name.squeeze()
     print("genres prob:",
           {class_dict[top5_genre_name[i].item()]: round(top5_genre_prob[i].item(), 2) for i in range(5)})
 
+
 def preprocessing(filepath):
-    signal,sr = torchaudio.load(filepath)
+    signal, sr = torchaudio.load(filepath)
     features_gen = FeaturesGenerator()
-    mfccs_chunks = features_gen.mfcc_preprocessing((signal,sr ), train=False)
+    mfccs_chunks = features_gen.mfcc_preprocessing((signal, sr), train=False)
     return mfccs_chunks
+
 
 if __name__ == '__main__':
     filepath = main(sys.argv)
