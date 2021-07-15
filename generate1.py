@@ -77,7 +77,10 @@ class BaseVideoGenerator(object):
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
-        keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        if hasattr(self.gan_model, 'buildNoiseData'):
+            keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        else:
+            keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1)
         # fps of a block
         fps_bloc = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
@@ -211,7 +214,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
     generator_path = 'resources/pth/netG_200_size64.pth'
-    model_gen = Models.Generator()
+    model_gen = Models.Generator(ngpu=1)
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     model_gen.load_state_dict(torch.load(generator_path, map_location=device))
     base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
