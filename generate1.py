@@ -80,7 +80,7 @@ class BaseVideoGenerator(object):
         if hasattr(self.gan_model, 'buildNoiseData'):
             keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
-            keypic = torch.randn(self.num_keypic, self.latent_dim).to(device)
+            keypic = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
         # fps of a block
         fps_bloc = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
