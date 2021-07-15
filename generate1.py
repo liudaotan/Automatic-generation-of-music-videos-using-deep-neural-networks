@@ -80,7 +80,7 @@ class BaseVideoGenerator(object):
         if hasattr(self.gan_model, 'buildNoiseData'):
             keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
-            keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1)
+            keypic = torch.randn(self.num_keypic, self.latent_dim)
         # fps of a block
         fps_bloc = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
@@ -135,9 +135,12 @@ class BaseVideoGenerator(object):
         if self.latent_features_is_init:
             for _, vec in enumerate(self.latent_features):
                 with torch.no_grad():
-                    picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
-                                                                                                                      2,
-                                                                                                                      0).numpy()
+                    # picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
+                    #                                                                                                   2,
+                    #                                                                                                   0).numpy()
+                    picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                                        2,
+                                                                                                                        0).numpy()
                     picture = (picture - np.min(picture)) / (np.max(picture) - np.min(picture))
                     plt.imsave('resources/imgs/' + folder + '/img%d.jpg' % _, picture)
         else:
