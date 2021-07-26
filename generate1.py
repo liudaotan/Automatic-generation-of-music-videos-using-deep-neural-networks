@@ -5,12 +5,12 @@ import torch
 import librosa
 import torchaudio
 from features.FeaturesLoader import FeaturesLoader
-import mymodels.Models as Models
 import matplotlib.pyplot as plt
 import numpy as np
 import ffmpeg
 import os
-import mymodels.Models as Models
+import mymodels.MusicGenresModels as music_genre_models
+import mymodels.DCGANModel as dcgan_model
 
 
 class BaseVideoGenerator(object):
@@ -31,7 +31,7 @@ class BaseVideoGenerator(object):
                                             pretrained=True, useGPU=use_gpu)
         else:
             self.gan_model = gan_model
-        self.audio_model = Models.CRNNModel()
+        self.audio_model = music_genre_models.CRNNModel()
         self.features_loader = FeaturesLoader(torch_model=self.audio_model,
                                               para_file_path="resources/pth/crnnModel1.pth",
                                               frame_len=frame_len)
@@ -82,32 +82,32 @@ class BaseVideoGenerator(object):
         else:
             keypic = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
         # fps of a block
-        fps_bloc = self.fps * self.sec_per_keypic
-        self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
+        fps_block = self.fps * self.sec_per_keypic
+        self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
 
         # init keyframes
         for i in range(self.num_keypic):
-            self.latent_features[i * fps_bloc] = keypic[i]
+            self.latent_features[i * fps_block] = keypic[i]
 
         # init frames between two keyframes
         for i in range(self.num_keypic - 1):
             diff_vec = keypic[i + 1] - keypic[i]
 
             # get the spectral centroid probability
-            spec_cent_partial = spec_cent[i * fps_bloc:(i + 1) * fps_bloc]
+            spec_cent_partial = spec_cent[i * fps_block:(i + 1) * fps_block]
 
             # let spectral centroids follow probabilistic density
             spec_cent_partial = torch.cumsum(torch.softmax(spec_cent_partial.reshape(-1, 1), dim=0), dim=0).to(
                 self.device)
 
             # get beats in this block
-            beats_block = beats[(beats > i * fps_bloc) & (beats < (i + 1) * fps_bloc)] % fps_bloc
+            beats_block = beats[(beats > i * fps_block) & (beats < (i + 1) * fps_block)] % fps_block
 
             # apply the impulse window to the probabilistic density of spectral
             # centroid to emphasize signals on beats
             half_impulse_win_len = int(self.impulse_win_len / 2)
             for beat in beats_block:
-                if beat - half_impulse_win_len > 0 and beat + half_impulse_win_len < fps_bloc:
+                if beat - half_impulse_win_len > 0 and beat + half_impulse_win_len < fps_block:
                     spec_cent_partial[beat - half_impulse_win_len: beat + half_impulse_win_len] += spec_cent_partial[
                                                                                                    beat - half_impulse_win_len: beat + half_impulse_win_len] * self.impulse_win * self.emphasize_weight
                 elif beat - half_impulse_win_len <= 0:
@@ -118,11 +118,12 @@ class BaseVideoGenerator(object):
                     spec_cent_partial[beat - half_impulse_win_len:] += spec_cent_partial[
                                                                        beat - half_impulse_win_len:] * self.impulse_win[
                                                                                                        -(
-                                                                                                               fps_bloc - beat + half_impulse_win_len):] * self.emphasize_weight
+                                                                                                               fps_block - beat + half_impulse_win_len):] * self.emphasize_weight
 
             # multiply the difference vector to the spectral centroid probabilistic density
-            self.latent_features[i * fps_bloc:(i + 1) * fps_bloc] = torch.mul(spec_cent_partial, diff_vec.view(1, -1)) + \
-                                                                    keypic[i]
+            self.latent_features[i * fps_block:(i + 1) * fps_block] = torch.mul(spec_cent_partial,
+                                                                                diff_vec.view(1, -1)) + \
+                                                                      keypic[i]
         self.latent_features_is_init = True
 
     def generate_pictures(self, folder):
@@ -135,12 +136,12 @@ class BaseVideoGenerator(object):
         if self.latent_features_is_init:
             for _, vec in enumerate(self.latent_features):
                 with torch.no_grad():
-                    # picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
-                    #                                                                                                   2,
-                    #                                                                                                   0).numpy()
-                    picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
-                                                                                                                        2,
-                                                                                                                        0).numpy()
+                    picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                                      2,
+                                                                                                                      0).numpy()
+                    # picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
+                    #                                                                                                     2,
+                    #                                                                                                     0).numpy()
                     picture = (picture - np.min(picture)) / (np.max(picture) - np.min(picture))
                     plt.imsave('resources/imgs/' + folder + '/img%d.jpg' % _, picture)
         else:
@@ -209,16 +210,34 @@ class HpssVideoGenerator(BaseVideoGenerator):
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
-        keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
         # fps of a block
-        fps_bloc = self.fps * self.sec_per_keypic
-        self.latent_features = torch.zeros(fps_bloc * self.num_keypic, self.latent_dim).to(self.device)
+        fps_block = self.fps * self.sec_per_keypic
+        self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
+        # insert key pictures to key points.
+        for i in range(self.num_keypic):
+            self.latent_features[i * fps_block] = keypics[i]
 
+        for i in range(self.num_keypic - 1):
+            # compute the difference between two keypic vectors
+            diff_vector = keypics[i + 1] - keypics[i]
+            # divide the diff_vector into fps_block parts
+            diff_vector = diff_vector / (fps_block - 1)
+            # stack difference vectors
+            diff_matrix = torch.vstack((diff_vector,) * fps_block)
+            # accumulate vectors
+            diff_matrix = torch.cumsum(diff_matrix, axis=0) + keypics[i]
+            # fill the gap between two keypic vectors by isometric difference vectors
+            self.latent_features[i * fps_block + 1: i * fps_block] = diff_matrix[:-2]
+
+        # Then, we need to define different transform pattern by using Hpss.
+        harm, perc = self.get_hpss(signal)
 
 if __name__ == '__main__':
-    generator_path = 'resources/pth/netG_200_size64.pth'
-    model_gen = Models.Generator(ngpu=1)
-    device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
-    model_gen.load_state_dict(torch.load(generator_path, map_location=device))
-    base_video_gen = BaseVideoGenerator(gan_model=model_gen.to(device), latent_dim=100)
+    # generator_path = 'resources/pth/netG_200_size64.pth'
+    # model_gen = dcgan_model.Generator(ngpu=1)
+    # device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
+    # model_gen.load_state_dict(torch.load(generator_path, map_location=device))
+    # base_video_gen = BaseVideoGenerator(gan_model=model_gen.to(device), latent_dim=100)
+    base_video_gen = BaseVideoGenerator()
     base_video_gen('resources/music/bj_new.mp3')
