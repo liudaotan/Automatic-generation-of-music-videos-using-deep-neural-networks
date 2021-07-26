@@ -231,7 +231,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
             self.latent_features[i * fps_block + 1: i * fps_block] = diff_matrix[:-2]
 
         # Then, we need to define different transform pattern by using Hpss.
-        harm, perc = self.get_hpss(signal)
+        # harm, perc = self.get_hpss(signal)
 
 if __name__ == '__main__':
     # generator_path = 'resources/pth/netG_200_size64.pth'
