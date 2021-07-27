@@ -4,6 +4,7 @@ import shutil
 import torch
 import librosa
 import torchaudio
+from torchaudio import transforms as audio_transforms
 from features.FeaturesLoader import FeaturesLoader
 import matplotlib.pyplot as plt
 import numpy as np
@@ -231,7 +232,20 @@ class HpssVideoGenerator(BaseVideoGenerator):
             self.latent_features[i * fps_block + 1: i * fps_block] = diff_matrix[:-2]
 
         # Then, we need to define different transform pattern by using Hpss.
-        # harm, perc = self.get_hpss(signal)
+        harm_rate = 0.5
+        perc_rate = 1-harm_rate
+        harm, perc = self.get_hpss(signal)
+        beats = self.beat_detector(signal, sr, hop_length=math.ceil(self.frame_len * sr_librosa))
+        beats2samples = librosa.frames_to_samples(beats, hop_length=math.ceil(self.frame_len * sr_librosa))
+        perc_sign = np.power(-1, np.random.randint(2, size=len(beats2samples)))
+        # a*harmonic + (-1^k)(1-a)*percussive, a is the weight of harmonic component which is an element of [0,1], and
+        # k is a random number which is either 1 or 0.
+        emphasize_vector = harm[beats2samples] * harm_rate + perc[beats2samples] * perc_rate * perc_sign
+        emphasize_vector *= self.emphasize_weight
+        for idx in beats2samples:
+            self.latent_features[idx-self.impulse_win_len/2, idx+self.impulse_win_len/2] *= emphasize_vector[idx] + 1
+
+        self.latent_features_is_init = True
 
 if __name__ == '__main__':
     # generator_path = 'resources/pth/netG_200_size64.pth'
