@@ -53,6 +53,7 @@ class BaseVideoGenerator(object):
         self.impulse_win = torch.hann_window(self.impulse_win_len).view(-1, 1).to(self.device)
         self.frame_len = frame_len
         self.latent_features_is_init = False
+        self.sample_rate = 44100
 
     @classmethod
     def load_audio_librosa(cls, file_path):
@@ -71,7 +72,7 @@ class BaseVideoGenerator(object):
         # load features
         features = self.features_loader.getFeatures(file_path)
         # load music by librosa
-        signal_librosa, sr_librosa = librosa.load(file_path)
+        signal_librosa, sr_librosa = librosa.load(file_path, sr=self.sample_rate)
         # obtain beats
         beats = self.beat_detector(signal_librosa, sr_librosa, math.ceil(self.frame_len * sr_librosa))
         # let spectral centroid follow probabilistic density
@@ -196,14 +197,14 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
     @classmethod
     def get_hpss(cls, signal):
-        harm, perc = librosa.decompose.hpss(s=signal)
+        harm, perc = librosa.effects.hpss(signal)
         return harm, perc
 
     def init_latent_vectors(self, file_path):
         # load features
         features = self.features_loader.getFeatures(file_path)
         # load music by librosa
-        signal_librosa, sr_librosa = librosa.load(file_path)
+        signal_librosa, sr_librosa = librosa.load(file_path, sr=self.sample_rate)
         # obtain harmonic and percussive component
         signal, sr = self.load_audio_librosa(file_path)
         harm, perc = self.get_hpss(signal)
@@ -229,21 +230,20 @@ class HpssVideoGenerator(BaseVideoGenerator):
             # accumulate vectors
             diff_matrix = torch.cumsum(diff_matrix, axis=0) + keypics[i]
             # fill the gap between two keypic vectors by isometric difference vectors
-            self.latent_features[i * fps_block + 1: i * fps_block] = diff_matrix[:-2]
+            self.latent_features[i * fps_block + 1: (i+1) * fps_block] = diff_matrix[:-1]
 
         # Then, we need to define different transform pattern by using Hpss.
-        harm_rate = 0.5
+        harm_rate = 0.2
         perc_rate = 1-harm_rate
         harm, perc = self.get_hpss(signal)
         beats = self.beat_detector(signal, sr, hop_length=math.ceil(self.frame_len * sr_librosa))
         beats2samples = librosa.frames_to_samples(beats, hop_length=math.ceil(self.frame_len * sr_librosa))
         perc_sign = np.power(-1, np.random.randint(2, size=len(beats2samples)))
-        # a*harmonic + (-1^k)(1-a)*percussive, a is the weight of harmonic component which is an element of [0,1], and
-        # k is a random number which is either 1 or 0.
-        emphasize_vector = harm[beats2samples] * harm_rate + perc[beats2samples] * perc_rate * perc_sign
-        emphasize_vector *= self.emphasize_weight
-        for idx in beats2samples:
-            self.latent_features[idx-self.impulse_win_len/2, idx+self.impulse_win_len/2] *= emphasize_vector[idx] + 1
+        # a*harmonic + (-1^k)(1-a)*percussive * (1+e_w), a is the weight of harmonic component which is an element of [0,1], and
+        # k is a random number which is either 1 or 0. e_w is the emphasize weight.
+        emphasize_vector = harm[beats2samples] * harm_rate + perc[beats2samples] * perc_rate * perc_sign * (1+self.emphasize_weight*5)
+        for _, idx in enumerate(beats):
+            self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (self.impulse_win[1:] * emphasize_vector[_] + 1)
 
         self.latent_features_is_init = True
 
@@ -253,5 +253,5 @@ if __name__ == '__main__':
     # device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     # model_gen.load_state_dict(torch.load(generator_path, map_location=device))
     # base_video_gen = BaseVideoGenerator(gan_model=model_gen.to(device), latent_dim=100)
-    base_video_gen = BaseVideoGenerator()
+    base_video_gen = HpssVideoGenerator()
     base_video_gen('resources/music/bj_new.mp3')
