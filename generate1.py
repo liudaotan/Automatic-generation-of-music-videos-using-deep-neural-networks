@@ -48,7 +48,7 @@ class BaseVideoGenerator(object):
         self.num_keypic = 0
         self.latent_features = False
         # emphasize weight
-        self.emphasize_weight = 0.2
+        self.emphasize_weight = 0.7
         self.impulse_win_len = 6
         self.impulse_win = torch.hann_window(self.impulse_win_len).view(-1, 1).to(self.device)
         self.frame_len = frame_len
@@ -243,7 +243,8 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # k is a random number which is either 1 or 0. e_w is the emphasize weight.
         emphasize_vector = harm[beats2samples] * harm_rate + perc[beats2samples] * perc_rate * perc_sign * (1+self.emphasize_weight*5)
         for _, idx in enumerate(beats):
-            self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (self.impulse_win[1:] * emphasize_vector[_] + 1)
+            # self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (self.impulse_win[1:] * emphasize_vector[_] + 1)
+            self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (perc_sign[_]*self.impulse_win[1:]*self.emphasize_weight + 1)
 
         self.latent_features_is_init = True
 
@@ -252,6 +253,6 @@ if __name__ == '__main__':
     # model_gen = dcgan_model.Generator(ngpu=1)
     # device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     # model_gen.load_state_dict(torch.load(generator_path, map_location=device))
-    # base_video_gen = BaseVideoGenerator(gan_model=model_gen.to(device), latent_dim=100)
+    # base_video_gen = BaseVideoGenerator()
     base_video_gen = HpssVideoGenerator()
-    base_video_gen('resources/music/bj_new.mp3')
+    base_video_gen('resources/music/Psychosocial.mp3')
