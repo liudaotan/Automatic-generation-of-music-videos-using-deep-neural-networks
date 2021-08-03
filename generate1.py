@@ -13,7 +13,7 @@ import ffmpeg
 import os
 import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
-import mymodels.DCGANModel as dcgan_model
+import mymodels.GANModel as gan_model
 
 
 class BaseVideoGenerator(object):
@@ -50,12 +50,13 @@ class BaseVideoGenerator(object):
         self.num_keypic = 0
         self.latent_features = False
         # emphasize weight
-        self.emphasize_weight = 0.75
-        self.impulse_win_len = 6
+        self.emphasize_weight = 0.3
+        self.impulse_win_len = 8
         self.impulse_win = torch.hann_window(self.impulse_win_len).view(-1, 1).to(self.device)
         self.frame_len = frame_len
         self.latent_features_is_init = False
         self.sample_rate = 44100
+        self.is_pretrained = True if gan_model is None else False
 
     @classmethod
     def load_audio_librosa(cls, file_path):
@@ -140,12 +141,14 @@ class BaseVideoGenerator(object):
         if self.latent_features_is_init:
             for _, vec in enumerate(self.latent_features):
                 with torch.no_grad():
-                    picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
-                                                                                                                      2,
-                                                                                                                      0).numpy()
-                    # picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
-                    #                                                                                                     2,
-                    #                                                                                                     0).numpy()
+                    if self.is_pretrained:
+                        picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                                          2,
+                                                                                                                          0).numpy()
+                    else:
+                        picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                                            2,
+                                                                                                                            0).numpy()
                     picture = (picture - np.min(picture)) / (np.max(picture) - np.min(picture))
                     plt.imsave('resources/imgs/' + folder + '/img%d.jpg' % _, picture)
         else:
@@ -196,7 +199,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
         """
         super(HpssVideoGenerator, self).__init__(**kwargs)
-
+        self.emphasize_weight = 0.7
     @classmethod
     def get_hpss(cls, signal):
         harm, perc = librosa.effects.hpss(signal)
@@ -214,7 +217,10 @@ class HpssVideoGenerator(BaseVideoGenerator):
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
-        keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        if hasattr(self.gan_model, 'buildNoiseData'):
+            keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        else:
+            keypics = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
@@ -264,11 +270,14 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 
 if __name__ == '__main__':
-    # generator_path = 'resources/pth/netG_200_size64.pth'
-    # model_gen = dcgan_model.Generator(ngpu=1)
-    # device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
-    # model_gen.load_state_dict(torch.load(generator_path, map_location=device))
-    #base_video_gen = BaseVideoGenerator()
-    base_video_gen = HpssVideoGenerator()
-    path = "resources/music/Deck the Halls.mp3"
+    dc_generator_path = 'resources/pth/landscape/netG_200_size64.pth'
+    sr_generator_path = 'resources/pth/landscape/netG_3form_size64_to_size256.pth'
+    model_gen = gan_model.Abstract_Generator(base_pth=dc_generator_path, boost_pth=sr_generator_path)
+    device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
+    model_gen.to(device)
+    # base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
+    base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
+    # base_video_gen = BaseVideoGenerator()
+    # base_video_gen = HpssVideoGenerator()
+    path = "resources/music/Metallica - NOTHING ELSE MATTERS.flac"
     base_video_gen(path)
