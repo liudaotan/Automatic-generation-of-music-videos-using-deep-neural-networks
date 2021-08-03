@@ -1,6 +1,7 @@
 import math
 import shutil
 
+import numpy
 import torch
 import librosa
 import torchaudio
@@ -11,6 +12,7 @@ import numpy as np
 import ffmpeg
 import os
 import mymodels.MusicGenresModels as music_genre_models
+import scipy.special
 import mymodels.DCGANModel as dcgan_model
 
 
@@ -48,7 +50,7 @@ class BaseVideoGenerator(object):
         self.num_keypic = 0
         self.latent_features = False
         # emphasize weight
-        self.emphasize_weight = 0.7
+        self.emphasize_weight = 0.75
         self.impulse_win_len = 6
         self.impulse_win = torch.hann_window(self.impulse_win_len).view(-1, 1).to(self.device)
         self.frame_len = frame_len
@@ -205,10 +207,10 @@ class HpssVideoGenerator(BaseVideoGenerator):
         features = self.features_loader.getFeatures(file_path)
         # load music by librosa
         signal_librosa, sr_librosa = librosa.load(file_path, sr=self.sample_rate)
+        hop_len = int(sr_librosa * self.frame_len)
         # obtain harmonic and percussive component
-        signal, sr = self.load_audio_librosa(file_path)
-        harm, perc = self.get_hpss(signal)
-        # let spectral centroid follow probabilistic density
+        harm, perc = self.get_hpss(signal_librosa)
+        # let spectral centroid signal_librosa probabilistic density
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
@@ -216,43 +218,57 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
+
+        # harm_spec = librosa.feature.melspectrogram(harm, sr=sr, n_mel=self.latent_dim, hop_length=hop_len)
+        perc_spec = librosa.feature.melspectrogram(perc, sr=sr_librosa, hop_length=hop_len)
+
+        differ_matrix = torch.zeros(perc_spec.shape[1], self.latent_dim).to(self.device)
+        impulse_sign = (-1)**numpy.random.randint(0, 2, (perc_spec.shape[1]))
         # insert key pictures to key points.
         for i in range(self.num_keypic):
-            self.latent_features[i * fps_block] = keypics[i]
+            self.latent_features[i * fps_block:(i + 1) * fps_block] = keypics[i]
+
+        # compute the difference vectors
+        for i in range(self.num_keypic - 1):
+            differ_matrix[i * fps_block: (i + 1) * fps_block] = keypics[i + 1] - keypics[i]
+
+        while perc_spec.shape[1] > len(self.latent_features):
+            self.latent_features = torch.cat((self.latent_features, self.latent_features[-1].view(1, -1)), axis=0)
+
+        latent_features_diff_weight = np.zeros(perc_spec.shape[1])
+        # obtain the spectral centroid of harmonic component
+        harm_spec_cent = librosa.feature.spectral_centroid(harm, sr=sr_librosa, hop_length=hop_len)
+        harm_spec_cent_norm = (harm_spec_cent - np.min(harm_spec_cent)) / \
+                              (np.max(harm_spec_cent) - np.min(harm_spec_cent))
+        harm_spec_cent_norm = np.clip(harm_spec_cent_norm, a_min=1e-4, a_max=None)
+        harm_spec_cent_norm = harm_spec_cent_norm.reshape(-1)
+
+        # normalize the percussive component's spectrogram
+        perc_spec_mean = np.mean(perc_spec, axis=0)
+        perc_spec_norm = (perc_spec_mean - np.min(perc_spec_mean)) / np.ptp(perc_spec_mean)
+        # apply the softmax to the normalized percussive component spectrogram
+        # perc_spec_norm = scipy.special.softmax(perc_spec_norm)
 
         for i in range(self.num_keypic - 1):
-            # compute the difference between two keypic vectors
-            diff_vector = keypics[i + 1] - keypics[i]
-            # divide the diff_vector into fps_block parts
-            diff_vector = diff_vector / (fps_block - 1)
-            # stack difference vectors
-            diff_matrix = torch.vstack((diff_vector,) * fps_block)
-            # accumulate vectors
-            diff_matrix = torch.cumsum(diff_matrix, axis=0) + keypics[i]
-            # fill the gap between two keypic vectors by isometric difference vectors
-            self.latent_features[i * fps_block + 1: (i+1) * fps_block] = diff_matrix[:-1]
-
-        # Then, we need to define different transform pattern by using Hpss.
-        harm_rate = 0.2
-        perc_rate = 1-harm_rate
-        harm, perc = self.get_hpss(signal)
-        beats = self.beat_detector(signal, sr, hop_length=math.ceil(self.frame_len * sr_librosa))
-        beats2samples = librosa.frames_to_samples(beats, hop_length=math.ceil(self.frame_len * sr_librosa))
-        perc_sign = np.power(-1, np.random.randint(2, size=len(beats2samples)))
-        # a*harmonic + (-1^k)(1-a)*percussive * (1+e_w), a is the weight of harmonic component which is an element of [0,1], and
-        # k is a random number which is either 1 or 0. e_w is the emphasize weight.
-        emphasize_vector = harm[beats2samples] * harm_rate + perc[beats2samples] * perc_rate * perc_sign * (1+self.emphasize_weight*5)
-        for _, idx in enumerate(beats):
-            # self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (self.impulse_win[1:] * emphasize_vector[_] + 1)
-            self.latent_features[idx-int(self.impulse_win_len/2)+1:  idx+int(self.impulse_win_len/2)] *= (perc_sign[_]*self.impulse_win[1:]*self.emphasize_weight + 1)
-
+            # interpolate vectors between two key frames by spectral centroid
+            block_weight = harm_spec_cent_norm[fps_block * i: fps_block * (i + 1)]
+            block_weight = (block_weight - np.min(block_weight)) / (np.max(block_weight) - np.min(block_weight))
+            block_weight /= np.sum(block_weight)
+            block_weight = np.cumsum(block_weight)
+            latent_features_diff_weight[fps_block * i:fps_block * (i + 1)] = block_weight
+        # emphasize frames corresponding to the percussive component
+        latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight * impulse_sign)
+        latent_features_diff_weight = torch.tensor(latent_features_diff_weight, device=self.device).view(-1, 1)
+        self.latent_features += latent_features_diff_weight * differ_matrix
         self.latent_features_is_init = True
+
 
 if __name__ == '__main__':
     # generator_path = 'resources/pth/netG_200_size64.pth'
     # model_gen = dcgan_model.Generator(ngpu=1)
     # device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     # model_gen.load_state_dict(torch.load(generator_path, map_location=device))
-    # base_video_gen = BaseVideoGenerator()
+    #base_video_gen = BaseVideoGenerator()
     base_video_gen = HpssVideoGenerator()
-    base_video_gen('resources/music/Psychosocial.mp3')
+    path = "resources/music/Deck the Halls.mp3"
+    base_video_gen(path)
