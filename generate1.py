@@ -16,6 +16,65 @@ import scipy.special
 import mymodels.GANModel as gan_model
 
 
+def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=1):
+    """
+    Parameters:
+    -----------
+    y: numpy.array
+        signal
+
+    sr: int
+        sample rate
+
+    hop_len: int
+        hop length
+
+    filter_list:
+        the indices of mel bin that are chosen.
+
+    n_mels: int
+        the number of mel bin.
+
+    clip_min: float
+        the minimum magnitude of the choosing mel spectrogram.
+
+    clip_max: float
+        the minimum magnitude of the choosing mel spectrogram
+
+    Return:
+    ------
+    """
+    mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
+    mel_filtered = mel[filter_list, :]
+    mel_norm = np.sum(mel_filtered) / np.max(mel_filtered)
+    mel_clip = np.clip(mel_norm, a_min=clip_min, a_max=clip_max)
+    return mel_clip
+
+
+def freq2mel(freq):
+    mel_freq = 2595 * np.log10(1 + freq / 700.0)
+    return mel_freq
+
+
+def percussive_range(min_freq=None, max_freq=None, n_mels=128, bass_drum=True, snare_drum=True, crash_cymbals=True):
+    min_freq = 0.0 if min_freq is None else min_freq
+    max_freq = 22050 or max_freq
+
+    mel_min_freq = freq2mel(min_freq)
+    mel_max_freq = freq2mel(max_freq)
+    mel_range = np.linspace(mel_min_freq, mel_max_freq, num=n_mels)
+    crash_cymbals_freq_range = [3000, 5000]
+    bass_drum_freq_range = [60, 100]
+    snare_drum_freq_range = [120, 250]
+    percussion_freq_collection = np.array([bass_drum_freq_range, snare_drum_freq_range, crash_cymbals_freq_range])
+    percussion_type_idx = np.array([bass_drum, snare_drum, crash_cymbals]).astype("bool")
+    choosing_freq_range = percussion_freq_collection[percussion_type_idx]
+    range_idx = lambda min, max: range(np.where(mel_range >= freq2mel(min))[0][0],
+                                       np.where(mel_range <= freq2mel(max))[0][-1] + 1)
+    percussive_freq_range = [list(range_idx(item[0], item[1])) for item in choosing_freq_range]
+    return set().union(*percussive_freq_range)
+
+
 class BaseVideoGenerator(object):
     """
     PGAN + beats detection
@@ -142,13 +201,15 @@ class BaseVideoGenerator(object):
             for _, vec in enumerate(self.latent_features):
                 with torch.no_grad():
                     if self.is_pretrained:
-                        picture = self.gan_model.test(vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
-                                                                                                                          2,
-                                                                                                                          0).numpy()
+                        picture = self.gan_model.test(
+                            vec.squeeze().unsqueeze(0).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                2,
+                                                                                                0).numpy()
                     else:
-                        picture = self.gan_model(vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
-                                                                                                                            2,
-                                                                                                                            0).numpy()
+                        picture = self.gan_model(
+                            vec.unsqueeze(0).unsqueeze(2).unsqueeze(3).cuda()).squeeze().detach().cpu().permute(1,
+                                                                                                                2,
+                                                                                                                0).numpy()
                     picture = (picture - np.min(picture)) / (np.max(picture) - np.min(picture))
                     plt.imsave('resources/imgs/' + folder + '/img%d.jpg' % _, picture)
         else:
@@ -199,7 +260,8 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
         """
         super(HpssVideoGenerator, self).__init__(**kwargs)
-        self.emphasize_weight = 0.7
+        self.emphasize_weight = 0.5
+
     @classmethod
     def get_hpss(cls, signal):
         harm, perc = librosa.effects.hpss(signal)
@@ -225,11 +287,19 @@ class HpssVideoGenerator(BaseVideoGenerator):
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
 
-        # harm_spec = librosa.feature.melspectrogram(harm, sr=sr, n_mel=self.latent_dim, hop_length=hop_len)
-        perc_spec = librosa.feature.melspectrogram(perc, sr=sr_librosa, hop_length=hop_len)
+        # obtain the spectral centroid of harmonic component
+        harm_spec_cent = librosa.feature.spectral_centroid(harm, sr=sr_librosa, hop_length=hop_len)
+        harm_spec_cent_norm = (harm_spec_cent - np.min(harm_spec_cent)) / \
+                              (np.max(harm_spec_cent) - np.min(harm_spec_cent))
+        harm_spec_cent_norm = np.clip(harm_spec_cent_norm, a_min=1e-4, a_max=None)
+        harm_spec_cent_norm = harm_spec_cent_norm.reshape(-1)
 
-        differ_matrix = torch.zeros(perc_spec.shape[1], self.latent_dim).to(self.device)
-        impulse_sign = (-1)**numpy.random.randint(0, 2, (perc_spec.shape[1]))
+        # harm_spec = librosa.feature.melspectrogram(harm, sr=sr, n_mel=self.latent_dim, hop_length=hop_len)
+        # perc_spec = librosa.feature.melspectrogram(perc, sr=sr_librosa, hop_length=hop_len)
+
+        differ_matrix = torch.zeros(len(harm_spec_cent_norm), self.latent_dim).to(self.device)
+        impulse_sign = (-1) ** numpy.random.randint(0, 2, len(harm_spec_cent_norm))
+
         # insert key pictures to key points.
         for i in range(self.num_keypic):
             self.latent_features[i * fps_block:(i + 1) * fps_block] = keypics[i]
@@ -238,20 +308,18 @@ class HpssVideoGenerator(BaseVideoGenerator):
         for i in range(self.num_keypic - 1):
             differ_matrix[i * fps_block: (i + 1) * fps_block] = keypics[i + 1] - keypics[i]
 
-        while perc_spec.shape[1] > len(self.latent_features):
+        # expand the latent feature if the number of latent vectors is less than
+        # size of the harmonic spectral centroid
+        while len(harm_spec_cent_norm) > len(self.latent_features):
             self.latent_features = torch.cat((self.latent_features, self.latent_features[-1].view(1, -1)), axis=0)
 
-        latent_features_diff_weight = np.zeros(perc_spec.shape[1])
-        # obtain the spectral centroid of harmonic component
-        harm_spec_cent = librosa.feature.spectral_centroid(harm, sr=sr_librosa, hop_length=hop_len)
-        harm_spec_cent_norm = (harm_spec_cent - np.min(harm_spec_cent)) / \
-                              (np.max(harm_spec_cent) - np.min(harm_spec_cent))
-        harm_spec_cent_norm = np.clip(harm_spec_cent_norm, a_min=1e-4, a_max=None)
-        harm_spec_cent_norm = harm_spec_cent_norm.reshape(-1)
+        latent_features_diff_weight = np.zeros(len(harm_spec_cent_norm))
 
-        # normalize the percussive component's spectrogram
-        perc_spec_mean = np.mean(perc_spec, axis=0)
-        perc_spec_norm = (perc_spec_mean - np.min(perc_spec_mean)) / np.ptp(perc_spec_mean)
+        # filter and normalize the percussive component's spectrogram
+        percussive_component_mel_range = list(percussive_range())
+        perc_spec_norm = mel_norm_freq_filter_clip(perc, sr_librosa, hop_len=hop_len,
+                                                   filter_list=[percussive_component_mel_range],clip_max=0.15)
+
         # apply the softmax to the normalized percussive component spectrogram
         # perc_spec_norm = scipy.special.softmax(perc_spec_norm)
 
@@ -276,8 +344,8 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     model_gen.to(device)
     # base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
-    base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
+    # base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
     # base_video_gen = BaseVideoGenerator()
-    # base_video_gen = HpssVideoGenerator()
-    path = "resources/music/Metallica - NOTHING ELSE MATTERS.flac"
+    base_video_gen = HpssVideoGenerator()
+    path = "resources/music/Deck the Halls.mp3"
     base_video_gen(path)
