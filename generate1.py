@@ -215,10 +215,10 @@ class BaseVideoGenerator(object):
         else:
             raise Exception("latent features haven't been initialized")
 
-    def generate_video(self, save_folder, audio_path, picture_style, verbose=True):
+    def generate_video(self, save_folder, audio_path, picture_style, combined_method,verbose=True):
         input_imgs_path = 'resources/imgs/' + save_folder + '/img%d.jpg'
         input_video_path = 'resources/videos/' + save_folder + '.mp4'
-        output_video_path = 'resources/videos/' + save_folder + '_' + picture_style + '_full.mp4'
+        output_video_path = 'resources/videos/' + save_folder + '_' + picture_style + '_'+ combined_method+ '_full.mp4'
         # create video
         ffmpeg.input(input_imgs_path, framerate=self.fps).output(input_video_path).run()
         shutil.rmtree('resources/imgs/' + save_folder)
@@ -229,14 +229,14 @@ class BaseVideoGenerator(object):
         if verbose:
             print("video is successfully generated")
 
-    def __call__(self, audio_path, picture_style):
+    def __call__(self, audio_path, picture_style, combined_method):
         filename = os.path.basename(audio_path).split(".")[0]
         print('--------------initializing latent vectors----------------')
         self.init_latent_vectors(audio_path)
         print('-----------------generating pictures---------------------')
         self.generate_pictures(filename)
         print('----------------generating the video---------------------')
-        self.generate_video(filename, audio_path, picture_style)
+        self.generate_video(filename, audio_path, picture_style, combined_method)
 
 
 class HpssVideoGenerator(BaseVideoGenerator):
@@ -339,7 +339,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    picture_style = 'landscape'
+    picture_style = ''
     combined_method = 'Hpss'
 
     dc_generator_path = 'resources/pth/' + picture_style + '/SRGAN.pth'
@@ -351,7 +351,7 @@ if __name__ == '__main__':
             base_video_gen = HpssVideoGenerator()
         else:
             base_video_gen = BaseVideoGenerator()
-        base_video_gen(music_path, 'faces512')
+        base_video_gen(music_path, 'faces512', combined_method)
     else:
         model_gen = gan_model.GAN_Generators(base_pth=dc_generator_path, boost_pth=sr_generator_path)
         device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
@@ -361,4 +361,4 @@ if __name__ == '__main__':
             base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
         else:
             base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
-        base_video_gen(music_path,picture_style)
+        base_video_gen(music_path,picture_style, combined_method)
