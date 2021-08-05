@@ -270,14 +270,16 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 
 if __name__ == '__main__':
-    dc_generator_path = 'resources/pth/landscape/netG_200_size64.pth'
-    sr_generator_path = 'resources/pth/landscape/netG_3form_size64_to_size256.pth'
-    model_gen = gan_model.Abstract_Generator(base_pth=dc_generator_path, boost_pth=sr_generator_path)
+    dc_generator_path = 'resources/pth/landscape/netG_200_size64.pth' # the generator used to generate 64*64 pictures
+    sr_generator_path = 'resources/pth/landscape/netG_3form_size64_to_size256.pth' # the generator used to improve the resolution of the pictures from 64*64 to 256*256
+    music_path = "resources/music/birdAndFish.flac"
+
+    model_gen = gan_model.GAN_Generators(base_pth=dc_generator_path, boost_pth=sr_generator_path)
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
     model_gen.to(device)
     # base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
     base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
     # base_video_gen = BaseVideoGenerator()
     # base_video_gen = HpssVideoGenerator()
-    path = "resources/music/Metallica - NOTHING ELSE MATTERS.flac"
-    base_video_gen(path)
+
+    base_video_gen(music_path)
