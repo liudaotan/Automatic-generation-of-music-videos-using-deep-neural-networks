@@ -339,11 +339,11 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    picture_style = ''
+    picture_style = 'abstract'
     combined_method = 'Hpss'
 
-    dc_generator_path = 'resources/pth/' + picture_style + '/SRGAN.pth'
-    sr_generator_path = 'resources/pth/' + picture_style + '/DCGAN.pth'
+    dc_generator_path = 'resources/pth/' + picture_style + '/DCGAN.pth'
+    sr_generator_path = 'resources/pth/' + picture_style + '/SRGAN.pth'
     music_path = "resources/music/birdAndFish.flac"
 
     if picture_style == '':
