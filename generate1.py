@@ -218,7 +218,7 @@ class BaseVideoGenerator(object):
     def generate_video(self, save_folder, audio_path, picture_style, combined_method,verbose=True):
         input_imgs_path = 'resources/imgs/' + save_folder + '/img%d.jpg'
         input_video_path = 'resources/videos/' + save_folder + '.mp4'
-        output_video_path = 'resources/videos/' + save_folder + '_' + picture_style + '_'+ combined_method+ '_full.mp4'
+        output_video_path = 'resources/videos/' + save_folder + '_' + picture_style + '_'+ combined_method+ '.mp4'
         # create video
         ffmpeg.input(input_imgs_path, framerate=self.fps).output(input_video_path).run()
         shutil.rmtree('resources/imgs/' + save_folder)
@@ -237,6 +237,7 @@ class BaseVideoGenerator(object):
         self.generate_pictures(filename)
         print('----------------generating the video---------------------')
         self.generate_video(filename, audio_path, picture_style, combined_method)
+        os.remove("resources/videos/" + os.path.basename(audio_path).split(".")[0] + '.mp4')
 
 
 class HpssVideoGenerator(BaseVideoGenerator):
@@ -346,12 +347,13 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    picture_style = 'abstract'
-    combined_method = 'Hpss'
+    picture_style = 'faces'
+    combined_method = 'Base'
+    music = 'birdAndFish.flac'
 
     dc_generator_path = 'resources/pth/' + picture_style + '/DCGAN.pth'
     sr_generator_path = 'resources/pth/' + picture_style + '/SRGAN.pth'
-    music_path = "resources/music/birdAndFish.flac"
+    music_path = "resources/music/" + music
 
     if picture_style == '':
         if combined_method == 'Hpss':
