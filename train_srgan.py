@@ -91,13 +91,15 @@ if __name__ == '__main__':
 
             batches_done = epoch * len(dataloader_HR) + i
             if batches_done % ganconfig.sample_interval == 0:
-                gen_imgs = torch.cat((imgs_HR.data, gen_imgs.data), 0)
 
                 dirs = "./resources/srgan_compare/%s/" % (ganconfig.datasetName)
                 if not os.path.exists(dirs):
                     os.makedirs(dirs)
 
-                save_image(gen_imgs, dirs + "%d.png"%(batches_done), nrow=10, normalize=True)
+                save_image(imgs_HR.data, dirs + "%d_HR.png" % (batches_done), nrow=10, normalize=True)
+                save_image(gen_imgs.data, dirs + "%d_SR.png" % (batches_done), nrow=10, normalize=True)
+                save_image(imgs_LR.data, dirs + "%d_LR.png" % (batches_done), nrow=10, normalize=True)
+
 
                 print(
                     "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
@@ -109,5 +111,5 @@ if __name__ == '__main__':
         os.makedirs(dirs)
 
     # save generator：
-    torch.save(netG.state_dict(), dirs + 'SRGAN.trained_model')
+    torch.save(netG.state_dict(), dirs + 'SRGAN.pth')
     print('The SRGAN has been trained and saved')
