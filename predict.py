@@ -69,7 +69,7 @@ if __name__ == '__main__':
     filepath = main(sys.argv)
     # ----------load the model------------
     model = Models.CRNNModel()
-    model = FeaturesLoader.loadmodel(model=model, para_file_path="resources/pth/crnnModel1.pth")
+    model = FeaturesLoader.loadmodel(model=model, para_file_path="resources/trained_model/crnnModel1.pth")
     # ----------preprocessing------------
     mfccs_data = preprocessing(filepath)
     # ----------prediction------------

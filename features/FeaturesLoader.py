@@ -200,6 +200,6 @@ class FeaturesLoader:
 
 
 if __name__ == '__main__':
-    features_loader = FeaturesLoader(mymodels.CRNNModel(), para_file_path='../resources/pth/crnnModel1.pth',frame_len=0.025)
+    features_loader = FeaturesLoader(mymodels.CRNNModel(), para_file_path='../resources/trained_model/crnnModel1.pth', frame_len=0.025)
     audio_features = features_loader.getFeatures("../resources/music/bj_new.mp3")
     print(audio_features.shape)

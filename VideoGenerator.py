@@ -36,13 +36,13 @@ def main(argv):
     return filepath
 
 
-def loadGenerator(model, device, para_file_path="resource/pth/dcgan_generator"):
+def loadGenerator(model, device, para_file_path="resource/trained_model/dcgan_generator"):
     model.load_state_dict(tr.load(para_file_path, map_location=device))
     model.to(device)
     return model
 
 
-def featuresGetter(model, audio_file_path, para_file_path="resource/pth/crnnModel1.pth"):
+def featuresGetter(model, audio_file_path, para_file_path="resource/trained_model/crnnModel1.trained_model"):
     features_loader = FeaturesLoader(torch_model=model, para_file_path=para_file_path)
     features = features_loader.getFeatures(audio_file_path)
     return features
