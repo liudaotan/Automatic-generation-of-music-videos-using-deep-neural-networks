@@ -13,7 +13,7 @@ import ffmpeg
 import os
 import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
-import mymodels.GANModel as gan_model
+import mymodels.Gan_structure as gan_model
 
 
 def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=0.2):
@@ -95,7 +95,7 @@ class BaseVideoGenerator(object):
             self.gan_model = gan_model
         self.audio_model = music_genre_models.CRNNModel()
         self.features_loader = FeaturesLoader(torch_model=self.audio_model,
-                                              para_file_path="resources/pth/crnnModel1.pth",
+                                              para_file_path="resources/trained_model/crnnModel1.pth",
                                               frame_len=frame_len)
         # dimension of the latent vector
         if latent_dim is None:
@@ -340,12 +340,12 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    picture_style = 'faces'
+    picture_style = ''
     combined_method = 'Base'
     music = 'birdAndFish.flac'
 
-    dc_generator_path = 'resources/pth/' + picture_style + '/DCGAN.pth'
-    sr_generator_path = 'resources/pth/' + picture_style + '/SRGAN.pth'
+    dc_generator_path = 'resources/trained_model/' + picture_style + '/DCGAN.trained_model'
+    sr_generator_path = 'resources/trained_model/' + picture_style + '/SRGAN.trained_model'
     music_path = "resources/music/" + music
 
     if picture_style == '':
