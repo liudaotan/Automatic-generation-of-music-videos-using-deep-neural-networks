@@ -1,5 +1,5 @@
 
-datasetName = "landscape"
+datasetName = "abstractArt"
 dataroot = './resources/train_data/' + datasetName
 
 # Number of workers for dataloader
@@ -25,7 +25,7 @@ ngf = 64
 ndf = 64
 
 # Number of training epochs
-num_epochs = 3
+num_epochs = 10
 
 # Learning rate for optimizers
 lr = 0.0002

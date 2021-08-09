@@ -130,7 +130,6 @@ class SRGAN_Discriminator(nn.Module):
         block8 = f.leaky_relu(self.bn8(self.conv8(block7)))
         block8 = block8.view(-1, block8.size(1) * block8.size(2) * block8.size(3))
         block9 = f.leaky_relu(self.fc1(block8), )
-        #       block9 = block9.view(-1,block9.size(1)*block9.size(2)*block9.size(3))
         block10 = tr.sigmoid(self.drop(self.fc2(block9)))
         return block10
 
@@ -142,7 +141,6 @@ class GAN_Generators(tr.nn.Module):
         ----------
         base_pth: the path of the pretrained DCGAN
         boost_pth:the path of the pretrained SRGAN
-
         """
         super(GAN_Generators, self).__init__()
         self.dc_generator = DCGAN_Generator(ngpu=ngpu)
