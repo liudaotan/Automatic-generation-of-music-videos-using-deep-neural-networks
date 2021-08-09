@@ -7,7 +7,7 @@
 # abstract art: kaggle datasets download -d greg115/abstract-art
 # pretty faces: kaggle datasets download -d yewtsing/pretty-face
 
-datasetName = "landscape"
+datasetName = "pretty_face"
 dataroot = './resources/train_data/' + datasetName
 
 # Number of workers for dataloader
