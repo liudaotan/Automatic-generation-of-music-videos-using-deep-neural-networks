@@ -265,6 +265,9 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
     @classmethod
     def get_hpss(cls, signal):
+        # obtain harmonic and percussive component
+        # harm: audio time series of the harmonic elements
+        # perc: audio time series of the percussive elements
         harm, perc = librosa.effects.hpss(signal)
         return harm, perc
 
@@ -272,6 +275,8 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # load features
         features = self.features_loader.getFeatures(file_path)
         # load music by librosa
+        # signal_librosa : audio time series ndarray
+        # sr_librosa : sampling rate
         signal_librosa, sr_librosa = librosa.load(file_path, sr=self.sample_rate)
         hop_len = int(sr_librosa * self.frame_len)
         # obtain harmonic and percussive component
@@ -284,12 +289,14 @@ class HpssVideoGenerator(BaseVideoGenerator):
             keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
             keypics = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
+
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
 
         # obtain the spectral centroid of harmonic component
         harm_spec_cent = librosa.feature.spectral_centroid(harm, sr=sr_librosa, hop_length=hop_len)
+        # normalisation the harm_spec_cent
         harm_spec_cent_norm = (harm_spec_cent - np.min(harm_spec_cent)) / \
                               (np.max(harm_spec_cent) - np.min(harm_spec_cent))
         harm_spec_cent_norm = np.clip(harm_spec_cent_norm, a_min=1e-4, a_max=None)
