@@ -16,6 +16,7 @@ import scipy.special
 import mymodels.Gan_structure as gan_model
 
 
+
 def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=0.2):
     """
     Parameters:
@@ -347,15 +348,19 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    picture_style = 'abstractArt'
-    combined_method = 'Base'
-    music = 'bj_new.wav'
+    style_index = 0
+    combined_method_index = 0
+    music_index = 0
+
+    picture_style = {0:'PretrainedHighResolutionFace',1:'landscape',2:'pretty_face',3:'abstractArt',4:'mixed'}[style_index]
+    combined_method = {0:'Base',1:'Hpss'}[combined_method_index]
+    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav'}[music_index]
 
     dc_generator_path = 'resources/trained_model/' + picture_style + '/DCGAN.pth'
     sr_generator_path = 'resources/trained_model/' + picture_style + '/SRGAN.pth'
     music_path = "resources/music/" + music
 
-    if picture_style == '':
+    if picture_style == 'PretrainedHighResolutionFace':
         if combined_method == 'Hpss':
             base_video_gen = HpssVideoGenerator()
         else:
@@ -370,4 +375,4 @@ if __name__ == '__main__':
             base_video_gen = HpssVideoGenerator(gan_model=model_gen, latent_dim=100)
         else:
             base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
-        base_video_gen(music_path,picture_style, combined_method)
+        base_video_gen(music_path, picture_style, combined_method)
