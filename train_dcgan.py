@@ -128,5 +128,5 @@ if __name__ == '__main__':
         os.makedirs(dirs)
 
     # save generator：
-    torch.save(netG.state_dict(),dirs + 'DCGAN.trained_model')
+    torch.save(netG.state_dict(),dirs + 'DCGAN.pth')
     print('The DCGAN has been trained and saved')
