@@ -282,9 +282,11 @@ class HpssVideoGenerator(BaseVideoGenerator):
         hop_len = int(sr_librosa * self.frame_len)
         # obtain harmonic and percussive component
         harm, perc = self.get_hpss(signal_librosa)
-        # let spectral centroid signal_librosa probabilistic density
-        spec_cent = features[:, 0]
+        # using the bandstop filter to block frequencies from 500 to 3000Hz
+        b, a = scipy.signal.butter(8, [500*2/sr_librosa, 3000*2/sr_librosa],  btype='bandstop')
+        perc = scipy.signal.filtfilt(b, a, perc)
         num_frames = features.shape[0]
+        # let spectral centroid signal_librosa probabilistic density
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
         if hasattr(self.gan_model, 'buildNoiseData'):
             keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
@@ -348,13 +350,13 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
 if __name__ == '__main__':
 
-    style_index = 0
+    style_index = 1
     combined_method_index = 0
-    music_index = 0
+    music_index = 5
 
     picture_style = {0:'PretrainedHighResolutionFace',1:'landscape',2:'pretty_face',3:'abstractArt',4:'mixed'}[style_index]
     combined_method = {0:'Base',1:'Hpss'}[combined_method_index]
-    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav'}[music_index]
+    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav', 5:'prototype.mp3'}[music_index]
 
     dc_generator_path = 'resources/trained_model/' + picture_style + '/DCGAN.pth'
     sr_generator_path = 'resources/trained_model/' + picture_style + '/SRGAN.pth'

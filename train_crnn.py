@@ -1,7 +1,7 @@
 import torch as tr
 from torch.utils.data import Dataset, DataLoader
 import utils.MusicDataset as MusicDataset
-import models.Models as Models
+import mymodels.MusicGenresModels as genre_model
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import multilabel_confusion_matrix as mcm
@@ -20,7 +20,7 @@ epochs = 10
 lr = 0.0001
 print_iters = 50
 # model = CNN.CnnModel(num_class=8).cuda()
-model = Models.CRNNModel(num_class=8).cuda()
+model = genre_model.CRNNModel(num_class=8).cuda()
 criterion = tr.nn.BCEWithLogitsLoss()
 optimizer = tr.optim.Adam(model.parameters(), lr=lr)
 loss_list = []
