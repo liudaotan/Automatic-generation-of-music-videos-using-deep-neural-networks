@@ -3,7 +3,6 @@
 ![tests](https://github.com/pykale/pykale/workflows/test/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/pykale/badge/?version=latest)](https://pykale.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://img.shields.io/pypi/v/pykale?color=blue)](https://pypi.org/project/pykale/)
-[![PyPI downloads](https://pepy.tech/badge/pykale)](https://pepy.tech/project/pykale)
 
 A group in the department is actively working on artificial intelligence (AI) technologies for the generation of music using deep neural networks. To complement this, we would like to extend our work to generate a visual accompaniment to the music. Recent progress in deep neural networks allows generation of images using architectures such as the generative adversarial network (GAN), a particular approach in which two neural networks contest with each other. Given a set of training images, the GAN learns to generate new images with the same statistics as the training set.
 
