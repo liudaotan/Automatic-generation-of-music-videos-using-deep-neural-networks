@@ -15,9 +15,9 @@ import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
 import mymodels.Gan_structure as gan_model
 
+import matplotlib.pyplot as plt
 
-
-def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=0.2):
+def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=2):
     """
     Parameters:
     -----------
@@ -46,11 +46,12 @@ def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=
     ------
     """
     mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
-    mel_filtered = mel[filter_list, :]
-    mel_norm = np.sum(mel_filtered) / np.max(mel_filtered)
+    mel = np.log(mel + 1e-9)
+    mel = librosa.util.normalize(mel)
+    mel_filtered = mel[filter_list[0], :]
+    mel_norm = np.mean((mel_filtered-np.min(mel_filtered)) / np.max(mel_filtered), axis=0)
     mel_clip = np.clip(mel_norm, a_min=clip_min, a_max=clip_max)
     return mel_clip
-
 
 def freq2mel(freq):
     mel_freq = 2595 * np.log10(1 + freq / 700.0)
@@ -145,7 +146,8 @@ class BaseVideoGenerator(object):
         if hasattr(self.gan_model, 'buildNoiseData'):
             keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
-            keypic = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
+            keypic = torch.randn(self.num_keypic, self.latent_dim, 1,1).to(self.device)
+            keypic = keypic.squeeze()
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
@@ -262,7 +264,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
         """
         super(HpssVideoGenerator, self).__init__(**kwargs)
-        self.emphasize_weight = 0.3
+        self.emphasize_weight = 0.1
 
     @classmethod
     def get_hpss(cls, signal):
@@ -329,11 +331,10 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # filter and normalize the percussive component's spectrogram
         percussive_component_mel_range = list(percussive_range())
         perc_spec_norm = mel_norm_freq_filter_clip(perc, sr_librosa, hop_len=hop_len,
-                                                   filter_list=[percussive_component_mel_range],clip_max=0.08)
+                                                   filter_list=[percussive_component_mel_range], clip_max=0.6)
 
         # apply the softmax to the normalized percussive component spectrogram
         # perc_spec_norm = scipy.special.softmax(perc_spec_norm)
-
         for i in range(self.num_keypic - 1):
             # interpolate vectors between two key frames by spectral centroid
             block_weight = harm_spec_cent_norm[fps_block * i: fps_block * (i + 1)]
@@ -342,7 +343,9 @@ class HpssVideoGenerator(BaseVideoGenerator):
             block_weight = np.cumsum(block_weight)
             latent_features_diff_weight[fps_block * i:fps_block * (i + 1)] = block_weight
         # emphasize frames corresponding to the percussive component
-        latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight * impulse_sign)
+        latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight)
+        plt.plot((perc_spec_norm * self.emphasize_weight)[1000:1400])
+        plt.show()
         latent_features_diff_weight = torch.tensor(latent_features_diff_weight, device=self.device).view(-1, 1)
         self.latent_features += latent_features_diff_weight * differ_matrix
         self.latent_features_is_init = True
@@ -351,12 +354,12 @@ class HpssVideoGenerator(BaseVideoGenerator):
 if __name__ == '__main__':
 
     style_index = 1
-    combined_method_index = 0
-    music_index = 5
+    combined_method_index = 1
+    music_index = 1
 
     picture_style = {0:'PretrainedHighResolutionFace',1:'landscape',2:'pretty_face',3:'abstractArt',4:'mixed'}[style_index]
     combined_method = {0:'Base',1:'Hpss'}[combined_method_index]
-    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav', 5:'prototype.mp3'}[music_index]
+    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav', 5:'prototype.mp3', 6:'The Dawn.mp3'}[music_index]
 
     dc_generator_path = 'resources/trained_model/' + picture_style + '/DCGAN.pth'
     sr_generator_path = 'resources/trained_model/' + picture_style + '/SRGAN.pth'
