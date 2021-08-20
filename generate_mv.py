@@ -5,9 +5,7 @@ import numpy
 import torch
 import librosa
 import torchaudio
-from torchaudio import transforms as audio_transforms
 from features.FeaturesLoader import FeaturesLoader
-import matplotlib.pyplot as plt
 import numpy as np
 import ffmpeg
 import os
@@ -15,7 +13,6 @@ import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
 import mymodels.Gan_structure as gan_model
 
-import matplotlib.pyplot as plt
 
 def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=2):
     """
@@ -344,8 +341,6 @@ class HpssVideoGenerator(BaseVideoGenerator):
             latent_features_diff_weight[fps_block * i:fps_block * (i + 1)] = block_weight
         # emphasize frames corresponding to the percussive component
         latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight)
-        plt.plot((perc_spec_norm * self.emphasize_weight)[1000:1400])
-        plt.show()
         latent_features_diff_weight = torch.tensor(latent_features_diff_weight, device=self.device).view(-1, 1)
         self.latent_features += latent_features_diff_weight * differ_matrix
         self.latent_features_is_init = True
