@@ -22,7 +22,6 @@ Suggested split of work (open to discussion)
 
 Qibin (MSc CS+SLP)
 Audio feature extraction
-Web service (file upload, keyframe selection)
 
 Daotan (MSc DA)
 GAN implementation
