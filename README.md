@@ -25,3 +25,37 @@ Audio feature extraction
 
 Daotan (MSc DA)
 GAN implementation
+
+---
+
+### Usage
+####requirements:
+
+    pytorch>1.7.0
+    torchaudio
+    torchvision
+    librosa
+    ffmpeg-python
+
+Before executing the program, please put the audio file to the 'resources/music' folder.
+
+####Command:
+
+    python main.py --help
+
+    outputs:
+
+    Auto music video generator
+    
+    optional arguments:
+      -h, --help            show this help message and exit
+      --audio AUDIO         audio file path
+      --model MODEL         the model used to generate the video (option: 'landscape', 'abstract', 'pretty_face', 'face512')
+      --method METHOD       the method applied to the change of video (option: 'base' or 'hpss')
+      --emphasize EMPHASIZE
+
+The program uses the base generator and landscape GAN by default. If you don't want to make any customization, you can simply run:
+    
+    python main.py --audio 'audio'
+
+'audio' is the name of the audio file. 
