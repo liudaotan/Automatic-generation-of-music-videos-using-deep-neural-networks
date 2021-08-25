@@ -376,7 +376,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 # To get arguments from commandline
 def get_args():
     parser = ArgumentParser(description='Auto music video generator')
-    parser.add_argument('--audio', type=str, help='audio file path')
+    parser.add_argument('--audio', type=str, help='audio file name, please put your audio file to the folder \'resources\\music\'')
     parser.add_argument('--model', type=str, default='landscape',
                         help='the model used to generate the video '
                              '(option: \'landscape\', \'abstract\', \'pretty_face\', \'face512\')')
