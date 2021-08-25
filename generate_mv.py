@@ -4,17 +4,21 @@ import shutil
 import numpy
 import torch
 import librosa
-import torchaudio
+#import torchaudio
 from features.FeaturesLoader import FeaturesLoader
 import numpy as np
+import matplotlib.pyplot as plt
 import ffmpeg
 import os
 import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
 import mymodels.Gan_structure as gan_model
+import os
+from argparse import ArgumentParser
+import test as tst
 
 
-def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=0, clip_max=2):
+def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=-1, clip_max=1):
     """
     Parameters:
     -----------
@@ -46,9 +50,16 @@ def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=
     mel = np.log(mel + 1e-9)
     mel = librosa.util.normalize(mel)
     mel_filtered = mel[filter_list[0], :]
-    mel_norm = np.mean((mel_filtered-np.min(mel_filtered)) / np.max(mel_filtered), axis=0)
+    mel_norm = np.mean(mel_filtered, axis=0)
     mel_clip = np.clip(mel_norm, a_min=clip_min, a_max=clip_max)
-    return mel_clip
+    return mel_clip + 1
+
+
+def sigmoid(x):
+    x = x ** 6
+    return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
+    # return 1 / (1 + np.exp(-x))
+
 
 def freq2mel(freq):
     mel_freq = 2595 * np.log10(1 + freq / 700.0)
@@ -120,9 +131,9 @@ class BaseVideoGenerator(object):
     def load_audio_librosa(cls, file_path):
         return librosa.load(file_path)
 
-    @classmethod
-    def load_audio_torch(cls, file_path):
-        return torchaudio.load(file_path)
+    # @classmethod
+    # def load_audio_torch(cls, file_path):
+    #     return torchaudio.load(file_path)
 
     @classmethod
     def beat_detector(cls, signal, sr, hop_length):
@@ -143,7 +154,7 @@ class BaseVideoGenerator(object):
         if hasattr(self.gan_model, 'buildNoiseData'):
             keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
-            keypic = torch.randn(self.num_keypic, self.latent_dim, 1,1).to(self.device)
+            keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1).to(self.device)
             keypic = keypic.squeeze()
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
@@ -215,10 +226,10 @@ class BaseVideoGenerator(object):
         else:
             raise Exception("latent features haven't been initialized")
 
-    def generate_video(self, save_folder, audio_path, picture_style, combined_method,verbose=True):
+    def generate_video(self, save_folder, audio_path, picture_style, combined_method, verbose=True):
         input_imgs_path = 'resources/imgs/' + save_folder + '/img%d.jpg'
         input_video_path = 'resources/music_videos/' + save_folder + '.mp4'
-        output_video_path = 'resources/music_videos/' + save_folder + '_' + picture_style + '_'+ combined_method+ '.mp4'
+        output_video_path = 'resources/music_videos/' + save_folder + '_' + picture_style + '_' + combined_method + '.mp4'
         # create video
         ffmpeg.input(input_imgs_path, framerate=self.fps).output(input_video_path).run()
         shutil.rmtree('resources/imgs/' + save_folder)
@@ -261,7 +272,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
         """
         super(HpssVideoGenerator, self).__init__(**kwargs)
-        self.emphasize_weight = 0.1
+        self.emphasize_weight = 0.4
 
     @classmethod
     def get_hpss(cls, signal):
@@ -282,7 +293,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
         # obtain harmonic and percussive component
         harm, perc = self.get_hpss(signal_librosa)
         # using the bandstop filter to block frequencies from 500 to 3000Hz
-        b, a = scipy.signal.butter(8, [500*2/sr_librosa, 3000*2/sr_librosa],  btype='bandstop')
+        b, a = scipy.signal.butter(8, [500 * 2 / sr_librosa, 3000 * 2 / sr_librosa], btype='bandstop')
         perc = scipy.signal.filtfilt(b, a, perc)
         num_frames = features.shape[0]
         # let spectral centroid signal_librosa probabilistic density
@@ -324,42 +335,59 @@ class HpssVideoGenerator(BaseVideoGenerator):
             self.latent_features = torch.cat((self.latent_features, self.latent_features[-1].view(1, -1)), axis=0)
 
         latent_features_diff_weight = np.zeros(len(harm_spec_cent_norm))
+        latent_features_diff = np.zeros(len(harm_spec_cent_norm))
 
         # filter and normalize the percussive component's spectrogram
         percussive_component_mel_range = list(percussive_range())
         perc_spec_norm = mel_norm_freq_filter_clip(perc, sr_librosa, hop_len=hop_len,
-                                                   filter_list=[percussive_component_mel_range], clip_max=0.6)
+                                                   filter_list=[percussive_component_mel_range])
 
         # apply the softmax to the normalized percussive component spectrogram
         # perc_spec_norm = scipy.special.softmax(perc_spec_norm)
+
         for i in range(self.num_keypic - 1):
             # interpolate vectors between two key frames by spectral centroid
             block_weight = harm_spec_cent_norm[fps_block * i: fps_block * (i + 1)]
             block_weight = (block_weight - np.min(block_weight)) / (np.max(block_weight) - np.min(block_weight))
             block_weight /= np.sum(block_weight)
+            latent_features_diff[fps_block * i:fps_block * (i + 1)] = block_weight
             block_weight = np.cumsum(block_weight)
             latent_features_diff_weight[fps_block * i:fps_block * (i + 1)] = block_weight
         # emphasize frames corresponding to the percussive component
+        perc_spec_norm = sigmoid(perc_spec_norm)
         latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight)
         latent_features_diff_weight = torch.tensor(latent_features_diff_weight, device=self.device).view(-1, 1)
         self.latent_features += latent_features_diff_weight * differ_matrix
         self.latent_features_is_init = True
 
 
-if __name__ == '__main__':
+# To get arguments from commandline
+def get_args():
+    parser = ArgumentParser(description='Auto music video generator')
+    parser.add_argument('--audio', type=str, help='audio file path')
+    parser.add_argument('--model', type=str, default='landscape',
+                        help='the model used to generate the video '
+                             '(option: \'landscape\', \'abstract\', \'pretty_face\', \'face512\')')
+    parser.add_argument('--method', type=str, default='base',
+                        help='the method applied to the change of video (option: \'base\' or \'hpss\')')
+    parser.add_argument('--emphasize', type=float, default=0.3)
+    args = parser.parse_args()
+    return args
 
-    style_index = 1
-    combined_method_index = 1
-    music_index = 1
 
-    picture_style = {0:'PretrainedHighResolutionFace',1:'landscape',2:'pretty_face',3:'abstractArt',4:'mixed'}[style_index]
-    combined_method = {0:'Base',1:'Hpss'}[combined_method_index]
-    music = {0:'bj_new.wav',1:'birdAndFish.flac',2:'BuyMeARose.flac',3:'NOTHING_ELSE_MATTERS.flac',4:'vbjea_ocgrs.wav', 5:'prototype.mp3', 6:'The Dawn.mp3'}[music_index]
+def main():
 
+    args = get_args()
+    print('audio:', args.audio)
+    print('model:', args.model)
+    print('method:', args.method)
+    music = args.audio
+    picture_style = {'face512': 'PretrainedHighResolutionFace', 'landscape': 'landscape', 'pretty_face': 'pretty_face',
+                     'abstract': 'abstractArt'}[args.model]
+    combined_method = {'base': 'Base', 'hpss': 'Hpss'}[args.method]
     dc_generator_path = 'resources/trained_model/' + picture_style + '/DCGAN.pth'
     sr_generator_path = 'resources/trained_model/' + picture_style + '/SRGAN.pth'
     music_path = "resources/music/" + music
-
     if picture_style == 'PretrainedHighResolutionFace':
         if combined_method == 'Hpss':
             base_video_gen = HpssVideoGenerator()
@@ -376,3 +404,7 @@ if __name__ == '__main__':
         else:
             base_video_gen = BaseVideoGenerator(gan_model=model_gen, latent_dim=100)
         base_video_gen(music_path, picture_style, combined_method)
+
+
+if __name__ == '__main__':
+    main()
