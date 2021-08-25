@@ -29,7 +29,7 @@ GAN implementation
 ---
 
 ### Usage
-####requirements:
+#### requirements:
 
     pytorch>1.7.0
     torchaudio
@@ -39,7 +39,7 @@ GAN implementation
 
 Before executing the program, please put the audio file to the 'resources/music' folder.
 
-####Command:
+#### Command:
 
     python main.py --help
 
