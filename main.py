@@ -4,18 +4,16 @@ import shutil
 import numpy
 import torch
 import librosa
-#import torchaudio
+import torchaudio
 from features.FeaturesLoader import FeaturesLoader
 import numpy as np
 import matplotlib.pyplot as plt
 import ffmpeg
-import os
 import mymodels.MusicGenresModels as music_genre_models
 import scipy.special
 import mymodels.Gan_structure as gan_model
 import os
 from argparse import ArgumentParser
-import test as tst
 
 
 def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=-1, clip_max=1):
@@ -46,39 +44,53 @@ def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=
     Return:
     ------
     """
+    # obatin the mel-spectrogram
     mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
+    # normalize the mel-spectrogram
     mel = np.log(mel + 1e-9)
     mel = librosa.util.normalize(mel)
+    # filter the mel spectrogram, only choose the mel bins we are interested in.
     mel_filtered = mel[filter_list[0], :]
+    # computer the average magnitude along frames.
     mel_norm = np.mean(mel_filtered, axis=0)
+    # clip the mel_norm
     mel_clip = np.clip(mel_norm, a_min=clip_min, a_max=clip_max)
+    # the interval of mel_clip is located in [-1, 1], we need to shift the interval to [0, 2]
+    # because we need to make all values greater than 0 and it benefits the magnitude scaling
+    # (we don't need to care about the sign of value)
     return mel_clip + 1
 
 
-def sigmoid(x):
-    x = x ** 6
+def magnitude_scaling(x, p=6):
+    # the power operation scales values and makes values close to 0 or 1
+    x = x ** p
     return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
     # return 1 / (1 + np.exp(-x))
 
 
 def freq2mel(freq):
+    # convert frequency to mel-frequency
     mel_freq = 2595 * np.log10(1 + freq / 700.0)
     return mel_freq
 
 
 def percussive_range(min_freq=None, max_freq=None, n_mels=128, bass_drum=True, snare_drum=True, crash_cymbals=True):
+    # obtain mel bins of percussive components frequencies
     min_freq = 0.0 if min_freq is None else min_freq
     max_freq = 22050 or max_freq
 
     mel_min_freq = freq2mel(min_freq)
     mel_max_freq = freq2mel(max_freq)
     mel_range = np.linspace(mel_min_freq, mel_max_freq, num=n_mels)
+    # the frequencies range of different kinds of instruments. These instruments usually work on heavy beats.
     crash_cymbals_freq_range = [3000, 5000]
     bass_drum_freq_range = [60, 100]
     snare_drum_freq_range = [120, 250]
+    # choose instruments we want
     percussion_freq_collection = np.array([bass_drum_freq_range, snare_drum_freq_range, crash_cymbals_freq_range])
     percussion_type_idx = np.array([bass_drum, snare_drum, crash_cymbals]).astype("bool")
     choosing_freq_range = percussion_freq_collection[percussion_type_idx]
+    # convert the frequency range to mel bin
     range_idx = lambda min, max: range(np.where(mel_range >= freq2mel(min))[0][0],
                                        np.where(mel_range <= freq2mel(max))[0][-1] + 1)
     percussive_freq_range = [list(range_idx(item[0], item[1])) for item in choosing_freq_range]
@@ -131,9 +143,9 @@ class BaseVideoGenerator(object):
     def load_audio_librosa(cls, file_path):
         return librosa.load(file_path)
 
-    # @classmethod
-    # def load_audio_torch(cls, file_path):
-    #     return torchaudio.load(file_path)
+    @classmethod
+    def load_audio_torch(cls, file_path):
+        return torchaudio.load(file_path)
 
     @classmethod
     def beat_detector(cls, signal, sr, hop_length):
@@ -354,7 +366,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
             block_weight = np.cumsum(block_weight)
             latent_features_diff_weight[fps_block * i:fps_block * (i + 1)] = block_weight
         # emphasize frames corresponding to the percussive component
-        perc_spec_norm = sigmoid(perc_spec_norm)
+        perc_spec_norm = magnitude_scaling(perc_spec_norm)
         latent_features_diff_weight *= (1 + perc_spec_norm * self.emphasize_weight)
         latent_features_diff_weight = torch.tensor(latent_features_diff_weight, device=self.device).view(-1, 1)
         self.latent_features += latent_features_diff_weight * differ_matrix
@@ -370,7 +382,8 @@ def get_args():
                              '(option: \'landscape\', \'abstract\', \'pretty_face\', \'face512\')')
     parser.add_argument('--method', type=str, default='base',
                         help='the method applied to the change of video (option: \'base\' or \'hpss\')')
-    parser.add_argument('--emphasize', type=float, default=0.3)
+    parser.add_argument('--emphasize', type=float, default=0.3,
+                        help='the magnitude applied to the generator to control the strength of audio\'s change')
     args = parser.parse_args()
     return args
 
