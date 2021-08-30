@@ -35,30 +35,18 @@ def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=
     n_mels: int
         the number of mel bin.
 
-    clip_min: float
-        the minimum magnitude of the choosing mel spectrogram.
-
-    clip_max: float
-        the minimum magnitude of the choosing mel spectrogram
-
     Return:
     ------
     """
     # obatin the mel-spectrogram
     mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
-    # normalize the mel-spectrogram
-    mel = np.log(mel + 1e-9)
-    mel = librosa.util.normalize(mel)
     # filter the mel spectrogram, only choose the mel bins we are interested in.
-    mel_filtered = mel[filter_list[0], :]
+    mfcc_perc_select = mel[filter_list[0], :]
+    print(mfcc_perc_select.shape)
+    mfcc_perc_select = (mfcc_perc_select - np.min(mfcc_perc_select))/ (np.max(mfcc_perc_select) - np.min(mfcc_perc_select))
     # computer the average magnitude along frames.
-    mel_norm = np.mean(mel_filtered, axis=0)
-    # clip the mel_norm
-    mel_clip = np.clip(mel_norm, a_min=clip_min, a_max=clip_max)
-    # the interval of mel_clip is located in [-1, 1], we need to shift the interval to [0, 2]
-    # because we need to make all values greater than 0 and it benefits the magnitude scaling
-    # (we don't need to care about the sign of value)
-    return mel_clip + 1
+    mel_norm = np.mean(mfcc_perc_select, axis=0)
+    return mel_norm
 
 
 def magnitude_scaling(x, p=6):
@@ -138,6 +126,7 @@ class BaseVideoGenerator(object):
         self.latent_features_is_init = False
         self.sample_rate = 44100
         self.is_pretrained = True if gan_model is None else False
+        self.chunk_size=10
 
     @classmethod
     def load_audio_librosa(cls, file_path):
@@ -152,9 +141,23 @@ class BaseVideoGenerator(object):
         tempo, beats = librosa.beat.beat_track(y=signal, sr=sr, hop_length=hop_length)
         return beats
 
+    def keyframe_init(self):
+        num_cat = len(set(self.genre))
+        cat_dict = dict(zip(set(self.genre), np.arange(len(set(self.genre))),))
+        if hasattr(self.gan_model, 'buildNoiseData'):
+            keypic, _ = self.gan_model.buildNoiseData(num_cat)
+        else:
+            keypic = torch.randn(num_cat, self.latent_dim, 1, 1).to(self.device)
+            keypic = keypic.squeeze()
+        keypic_temp = torch.zeros(self.num_keypic, self.latent_dim)
+        for idx in range(self.num_keypic):
+            cat_idx = idx * self.sec_per_keypic // self.chunk_size
+            keypic_temp[idx] = keypic[cat_dict[self.genre[cat_idx]]]
+        return keypic_temp
+
     def init_latent_vectors(self, file_path):
         # load features
-        features = self.features_loader.getFeatures(file_path)
+        self.genre, features = self.features_loader.getFeatures(file_path)
         # load music by librosa
         signal_librosa, sr_librosa = librosa.load(file_path, sr=self.sample_rate)
         # obtain beats
@@ -163,11 +166,12 @@ class BaseVideoGenerator(object):
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
-        if hasattr(self.gan_model, 'buildNoiseData'):
-            keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
-        else:
-            keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1).to(self.device)
-            keypic = keypic.squeeze()
+        # if hasattr(self.gan_model, 'buildNoiseData'):
+        #     keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        # else:
+        #     keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1).to(self.device)
+        #     keypic = keypic.squeeze()
+        keypic = self.keyframe_init().to(self.device)
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)

@@ -63,7 +63,10 @@ def prediction(model, data):
         for item in data:
             item = item.unsqueeze(0)
             y_ = model(item.to(device))
-            predict_list.append((torch.sigmoid(y_) > 0.5).view(-1).nonzero().tolist())
+            category = (torch.sigmoid(y_) > 0.5).view(-1).nonzero().tolist()
+            if len(category) == 0:
+                category = [[8]]
+            predict_list.append(category)
             y_list.append(y_)
             sum_y_ += y_.cpu()
             sum_y_ /= item.shape[1] // num_segment
@@ -82,6 +85,7 @@ class FeaturesLoader:
     This class provides the timbre and genres features,
     also, it can return a concatenated tensor of both timbre and genres features.
     """
+
     def __init__(self, torch_model, para_file_path, frame_len=0.1):
         """
         Parameters
@@ -154,7 +158,7 @@ class FeaturesLoader:
         overall_genre = torch.softmax(overall_genre, dim=1)
         repeated_overall_genre = overall_genre.repeat(int(self.chunk_size / frame_len), 1)
         res = torch.cat((res, repeated_overall_genre), dim=0)
-        return res
+        return [item[0][0] for item in predict_list], res
 
     def loadMusic(self, path):
         """
@@ -192,14 +196,15 @@ class FeaturesLoader:
 
         """
         audio, sr = self.loadMusic(path)
-        genre = self.getGenresFeatures(audio, sr, self.model, frame_len=self.frame_len)
+        genre, genre_vectors = self.getGenresFeatures(audio, sr, self.model, frame_len=self.frame_len)
         timbre = self.getTimbreFeatures(audio, sr).view(-1, 1)
         features_len = timbre.shape[0]
-        features = torch.cat((timbre, genre[:features_len, :].cpu()), dim=1)
-        return features
+        features = torch.cat((timbre, genre_vectors[:features_len, :].cpu()), dim=1)
+        return genre, features
 
 
 if __name__ == '__main__':
-    features_loader = FeaturesLoader(mymodels.CRNNModel(), para_file_path='../resources/trained_model/crnnModel1.pth', frame_len=0.025)
-    audio_features = features_loader.getFeatures("../resources/music/bj_new.mp3")
+    features_loader = FeaturesLoader(mymodels.CRNNModel(), para_file_path='../resources/trained_model/crnnModel1.pth',
+                                     frame_len=0.025)
+    genre, audio_features = features_loader.getFeatures("../resources/music/exciting.wav")
     print(audio_features.shape)
