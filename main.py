@@ -38,22 +38,32 @@ def mel_norm_freq_filter_clip(y, sr, hop_len, filter_list, n_mels=128, clip_min=
     Return:
     ------
     """
-    # obatin the mel-spectrogram
+    # # obatin the mel-spectrogram
+    # mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
+    # # filter the mel spectrogram, only choose the mel bins we are interested in.
+    # mfcc_perc_select = mel[filter_list[0], :]
+    # mfcc_perc_select = (mfcc_perc_select - np.min(mfcc_perc_select))/ (np.max(mfcc_perc_select) - np.min(mfcc_perc_select))
+    # # computer the average magnitude along frames.
+    # mel_norm = np.mean(mfcc_perc_select, axis=0)
+    # return mel_norm
+
     mel = librosa.feature.melspectrogram(y, sr, n_mels=n_mels, hop_length=hop_len)
+    # mel = np.log(mel + 1e-9)
     # filter the mel spectrogram, only choose the mel bins we are interested in.
-    mfcc_perc_select = mel[filter_list[0], :]
-    print(mfcc_perc_select.shape)
-    mfcc_perc_select = (mfcc_perc_select - np.min(mfcc_perc_select))/ (np.max(mfcc_perc_select) - np.min(mfcc_perc_select))
-    # computer the average magnitude along frames.
-    mel_norm = np.mean(mfcc_perc_select, axis=0)
+    mel_perc_select = mel[filter_list[0], :]
+    mel_perc_select = np.mean(mel_perc_select, axis=0)
+    # standardize the mel_spectrogram
+    mel_perc_select = np.log(mel_perc_select + 1e-9)
+    mel_norm = (mel_perc_select - np.min(mel_perc_select))/(np.max(mel_perc_select) - np.min(mel_perc_select))
     return mel_norm
 
 
-def magnitude_scaling(x, p=6):
+def magnitude_scaling(x, p=2):
     # the power operation scales values and makes values close to 0 or 1
-    x = x ** p
-    return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
-    # return 1 / (1 + np.exp(-x))
+    # x = x ** p
+    # return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
+
+    return np.exp(p*(x-np.mean(x)))
 
 
 def freq2mel(freq):
@@ -79,7 +89,7 @@ def percussive_range(min_freq=None, max_freq=None, n_mels=128, bass_drum=True, s
     percussion_type_idx = np.array([bass_drum, snare_drum, crash_cymbals]).astype("bool")
     choosing_freq_range = percussion_freq_collection[percussion_type_idx]
     # convert the frequency range to mel bin
-    range_idx = lambda min, max: range(np.where(mel_range >= freq2mel(min))[0][0],
+    range_idx = lambda min, max: range(np.where(mel_range >= freq2mel(min))[0][0] - 1,
                                        np.where(mel_range <= freq2mel(max))[0][-1] + 1)
     percussive_freq_range = [list(range_idx(item[0], item[1])) for item in choosing_freq_range]
     return set().union(*percussive_freq_range)
@@ -166,12 +176,12 @@ class BaseVideoGenerator(object):
         spec_cent = features[:, 0]
         num_frames = features.shape[0]
         self.num_keypic = math.ceil(num_frames // (self.fps * self.sec_per_keypic))
-        # if hasattr(self.gan_model, 'buildNoiseData'):
-        #     keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
-        # else:
-        #     keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1).to(self.device)
-        #     keypic = keypic.squeeze()
-        keypic = self.keyframe_init().to(self.device)
+        if hasattr(self.gan_model, 'buildNoiseData'):
+            keypic, _ = self.gan_model.buildNoiseData(self.num_keypic)
+        else:
+            keypic = torch.randn(self.num_keypic, self.latent_dim, 1, 1).to(self.device)
+            keypic = keypic.squeeze()
+        #keypic = self.keyframe_init().to(self.device)
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)
@@ -300,7 +310,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
 
     def init_latent_vectors(self, file_path):
         # load features
-        features = self.features_loader.getFeatures(file_path)
+        self.genre, features = self.features_loader.getFeatures(file_path)
         # load music by librosa
         # signal_librosa : audio time series ndarray
         # sr_librosa : sampling rate
@@ -318,7 +328,7 @@ class HpssVideoGenerator(BaseVideoGenerator):
             keypics, _ = self.gan_model.buildNoiseData(self.num_keypic)
         else:
             keypics = torch.randn(self.num_keypic, self.latent_dim).to(self.device)
-
+        # keypics = self.keyframe_init().to(self.device)
         # fps of a block
         fps_block = self.fps * self.sec_per_keypic
         self.latent_features = torch.zeros(fps_block * self.num_keypic, self.latent_dim).to(self.device)

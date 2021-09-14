@@ -4,8 +4,9 @@ import torch
 import torch.nn.functional as F
 from features.Features import FeaturesGenerator
 import features.FeaturesLoader as FeaturesLoader
-import mymodels.Models as Models
+import mymodels.MusicGenresModels as Models
 import torchaudio
+import utils.config as config
 
 
 def help_msg():
@@ -40,8 +41,7 @@ def main(argv):
 
 
 def showres(predict_list, overall_genre):
-    class_dict = {0: 'Experimental', 1: 'Electronic', 2: 'Rock', 3: 'Instrumental', 4: 'Folk', 5: 'Pop', 6: 'Hip-Hop',
-                  7: 'International'}
+    class_dict = config.class_dict
     for idx, item in enumerate(predict_list):
         classes = [class_dict[cat[0]] for cat in item]
         if len(classes) == 0:
